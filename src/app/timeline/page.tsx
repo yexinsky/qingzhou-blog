@@ -6,6 +6,8 @@ import { Container, Section, PageTitle } from '@/components/layout/Container'
 import { db, schema } from '@/lib/db'
 import type { LucideIcon } from 'lucide-react'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata = {
   title: '时间线 - Qzhou Blog',
   description: '工作、学习、开源与生活的重要时刻。',

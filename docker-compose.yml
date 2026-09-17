@@ -1,0 +1,132 @@
+# QzBlog 一键部署（飞牛 NAS / 群晖 / 通用 Linux 均可）
+#
+# 首次部署：
+#   1. cp .env.docker.example .env 并按注释填写（4 个必填项）
+#   2. docker compose up -d --build
+#   3. 浏览器访问 http://<NAS 地址>:<WEB_PORT>
+#
+# 详细说明、飞牛 NAS 注意事项与常见故障见 docs/DOCKER.md
+
+services:
+  # ---------------- 数据库 ----------------
+  db:
+    image: mysql:8.0
+    container_name: qzblog-db
+    restart: unless-stopped
+    command:
+      # 迁移文件里没有写字符集，库表字符集取自服务端默认值，必须显式指定 utf8mb4
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      # 应用按 UTC 读写 datetime(3)，服务端时区固定 UTC，避免隐式时区换算
+      - --default-time-zone=+00:00
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-qzblog}
+      MYSQL_USER: ${MYSQL_USER:-qzblog}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请在 .env 中设置 MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 .env 中设置 MYSQL_ROOT_PASSWORD}
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      # MySQL 官方镜像的入口脚本以 root 启动并自行修正数据目录属主，绑定挂载可放心使用。
+      # 不要放在 SMB/NFS 网络共享或 exFAT/NTFS 外置盘上：InnoDB 依赖文件锁与 POSIX 权限。
+      - ${DATA_DIR:-./data}/mysql:/var/lib/mysql
+    # 数据库不映射到宿主端口（PRD 5.5）：只有 app 容器能连。确需用客户端连库时，
+    # 取消下面两行注释，并确认只在内网开放。
+    # ports:
+    #   - "${DB_PORT:-3306}:3306"
+    healthcheck:
+      # mysqladmin ping 在认证失败但服务已就绪时同样返回 0，因此无需在探针里带密码
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ---------------- 应用 ----------------
+  app:
+    build:
+      context: .
+      args:
+        # 以下三项只在构建期生效（写入响应头与图片白名单），改动后需 --build 重新构建
+        ENFORCE_HTTPS: ${ENFORCE_HTTPS:-false}
+        S3_PUBLIC_URL: ${S3_PUBLIC_URL:-}
+        EXTRA_IMAGE_HOSTS: ${EXTRA_IMAGE_HOSTS:-}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+    image: qzblog:latest
+    container_name: qzblog-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      # 只暴露这一个端口；改 WEB_PORT 可避开飞牛自身服务或其他容器占用的端口
+      - "${WEB_PORT:-8080}:3000"
+    environment:
+      # 密码请只用字母数字，避免 URL 保留字符（@ : / ? #）破坏连接串
+      DATABASE_URL: mysql://${MYSQL_USER:-qzblog}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE:-qzblog}
+      # 必须是你实际访问博客的地址，否则登录后会被跳回错误域名
+      SITE_URL: ${SITE_URL:?请在 .env 中设置 SITE_URL（例如 http://192.168.5.2:8080）}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:?请在 .env 中设置 NEXTAUTH_URL（例如 http://192.168.5.2:8080）}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?请在 .env 中设置 NEXTAUTH_SECRET（至少 32 位随机字符）}
+      ANONYMOUS_ID_SECRET: ${ANONYMOUS_ID_SECRET:-}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?请在 .env 中设置 ADMIN_PASSWORD}
+      AUTH_TRUST_PROXY: ${AUTH_TRUST_PROXY:-false}
+      # 反向代理会覆写 X-Real-IP / X-Forwarded-For 时才填写，直连留空
+      TRUSTED_PROXY_IP_HEADER: ${TRUSTED_PROXY_IP_HEADER:-}
+      # 单实例部署用进程内限流；多副本/需要跨实例共享计数时改用 Upstash（见 docs/DOCKER.md）
+      RATE_LIMIT_BACKEND: ${RATE_LIMIT_BACKEND:-memory}
+      UPSTASH_REDIS_REST_URL: ${UPSTASH_REDIS_REST_URL:-}
+      UPSTASH_REDIS_REST_TOKEN: ${UPSTASH_REDIS_REST_TOKEN:-}
+      ENABLE_GITHUB_AUTH: ${ENABLE_GITHUB_AUTH:-false}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      # 附件默认存本地磁盘（uploads 卷，同源 /api/files/* 提供）；启用 minio profile 后改 s3
+      ATTACHMENTS_STORAGE: ${ATTACHMENTS_STORAGE:-local}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_REGION: ${S3_REGION:-auto}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-qzblog}
+      S3_PUBLIC_URL: ${S3_PUBLIC_URL:-}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      # 附件与备份用命名卷：首次使用时 Docker 会把镜像内目录（属主 nextjs）复制进卷，
+      # 因此不需要手工 chown，容器重启/升级都不丢数据。
+      # 若想把附件放在自己的共享目录，改成绑定挂载，并把运行用户对齐目录属主：
+      #   - ${DATA_DIR:-./data}/uploads:/app/uploads
+      #   - ${DATA_DIR:-./data}/backups:/app/backups
+      #   user: "${PUID:-1000}:${PGID:-1000}"   # 之后需 chown -R ${PUID}:${PGID} 该目录
+      - qzblog_uploads:/app/uploads
+      - qzblog_backups:/app/backups
+
+  # ---------------- 可选：MinIO 对象存储 ----------------
+  # 默认不启动。需要时：
+  #   1. .env 填 MINIO_ROOT_USER / MINIO_ROOT_PASSWORD，并把 ATTACHMENTS_STORAGE 改为 s3，
+  #      同时设置 S3_ENDPOINT=http://minio:9000、S3_PUBLIC_URL=http://<NAS 地址>:9000/qzblog
+  #   2. docker compose --profile minio up -d --build
+  #   3. 首次启动后创建存储桶并设为公开只读（命令见 docs/DOCKER.md）
+  minio:
+    image: minio/minio:latest
+    container_name: qzblog-minio
+    profiles: ["minio"]
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      # 不用 :? 强制必填：compose 会在启用 profile 之前就校验整个文件的变量，
+      # 默认部署（不带 --profile minio）不该被这几个变量拦住。
+      # 启用该 profile 时必须先在 .env 里填好，否则 MinIO 会拒绝启动。
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-}
+      TZ: ${TZ:-Asia/Shanghai}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - qzblog_minio:/data
+
+volumes:
+  qzblog_uploads:
+  qzblog_backups:
+  qzblog_minio:

@@ -8,6 +8,8 @@ import Link from 'next/link'
 import { db, schema } from '@/lib/db'
 import { renderMarkdown } from '@/lib/markdown'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata = {
   title: '关于我 - Qzhou Blog',
   description: '关于我、技能与联系方式。',

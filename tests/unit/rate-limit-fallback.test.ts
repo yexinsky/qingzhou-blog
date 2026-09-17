@@ -54,6 +54,44 @@ describe('rate-limit in-memory fallback', () => {
   });
 });
 
+describe('production rate limiting without a shared backend', () => {
+  const ORIGINAL_ENV = { ...process.env };
+
+  beforeEach(() => {
+    jest.resetModules();
+    delete process.env.UPSTASH_REDIS_REST_URL;
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    delete process.env.RATE_LIMIT_BACKEND;
+    process.env.NODE_ENV = 'production';
+  });
+
+  afterAll(() => {
+    process.env = ORIGINAL_ENV;
+  });
+
+  it('keeps refusing in-process counters unless explicitly opted in', async () => {
+    const mod = await import('@/lib/rate-limit');
+    expect(mod.getRateLimiterBackend()).toBe('unavailable');
+    await expect(mod.loginRatelimit.limit('192.0.2.9')).rejects.toThrow(/required in production/);
+  });
+
+  it('enforces limits in-process when RATE_LIMIT_BACKEND=memory (single-instance self-hosting)', async () => {
+    process.env.RATE_LIMIT_BACKEND = 'memory';
+    const mod = await import('@/lib/rate-limit');
+    expect(mod.getRateLimiterBackend()).toBe('memory');
+    for (let i = 0; i < 5; i++) {
+      expect((await mod.loginRatelimit.limit('192.0.2.9')).success).toBe(true);
+    }
+    expect((await mod.loginRatelimit.limit('192.0.2.9')).success).toBe(false);
+  });
+
+  it('ignores unknown backend values', async () => {
+    process.env.RATE_LIMIT_BACKEND = 'upstash';
+    const mod = await import('@/lib/rate-limit');
+    expect(mod.getRateLimiterBackend()).toBe('unavailable');
+  });
+});
+
 describe('trusted proxy handling', () => {
   const ORIGINAL_ENV = { ...process.env };
   afterEach(() => {

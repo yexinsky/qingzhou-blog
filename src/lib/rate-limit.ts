@@ -41,6 +41,12 @@ const redisUrl = process.env.UPSTASH_REDIS_REST_URL?.trim();
 const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
 const hasRedisConfig = Boolean(redisUrl && redisToken);
 const isProduction = process.env.NODE_ENV === 'production';
+// 自托管单实例部署（Docker Compose）可显式选择进程内限流：RATE_LIMIT_BACKEND=memory。
+// 默认仍要求生产环境使用共享 Redis，避免多实例部署在无感知的情况下丢掉跨实例限流。
+const allowMemoryBackend = (process.env.RATE_LIMIT_BACKEND || '').trim().toLowerCase() === 'memory';
+if (isProduction && allowMemoryBackend) {
+  console.warn('[rate-limit] RATE_LIMIT_BACKEND=memory：计数保存在单进程内存中，重启即清零，仅在单实例部署下使用。');
+}
 
 type UpstashModules = {
   Redis: new (config: { url: string; token: string }) => unknown;
@@ -61,7 +67,10 @@ function unavailableLimiter(prefix: string): RateLimiter {
   return { async limit() { throw new Error(`[rate-limit] ${prefix}: Redis rate limiting is required in production`); } };
 }
 function createRatelimiter(limit: number, window: `${number} ${'ms'|'s'|'m'|'h'|'d'}`, prefix: string): RateLimiter {
-  if (!hasRedisConfig) return isProduction ? unavailableLimiter(prefix) : new MemoryRateLimiter(limit, parseWindowToMs(window), prefix);
+  if (!hasRedisConfig) {
+    if (isProduction && !allowMemoryBackend) return unavailableLimiter(prefix);
+    return new MemoryRateLimiter(limit, parseWindowToMs(window), prefix);
+  }
   let real: RateLimiter | null = null;
   return { async limit(identifier: string) {
     if (!real) {
@@ -75,14 +84,21 @@ function createRatelimiter(limit: number, window: `${number} ${'ms'|'s'|'m'|'h'|
           prefix,
         });
       } catch (error) {
-        if (isProduction) throw new Error(`[rate-limit] ${prefix}: Redis initialization failed`, { cause: error });
+        if (isProduction && !allowMemoryBackend) throw new Error(`[rate-limit] ${prefix}: Redis initialization failed`, { cause: error });
+        console.warn(`[rate-limit] ${prefix}: Redis 初始化失败，降级为进程内限流`, error);
+        // 降级后缓存在 real 上，后续请求不再重试 Redis。
         real = new MemoryRateLimiter(limit, parseWindowToMs(window), prefix);
       }
     }
     try { return await real.limit(identifier); }
     catch (error) {
-      if (isProduction) throw new Error(`[rate-limit] ${prefix}: Redis request failed`, { cause: error });
-      throw error;
+      if (!allowMemoryBackend) {
+        if (isProduction) throw new Error(`[rate-limit] ${prefix}: Redis request failed`, { cause: error });
+        throw error;
+      }
+      console.warn(`[rate-limit] ${prefix}: Redis 请求失败，降级为进程内限流`, error);
+      real = new MemoryRateLimiter(limit, parseWindowToMs(window), prefix);
+      return real.limit(identifier);
     }
   }};
 }
@@ -92,7 +108,10 @@ export const loginRatelimit = createRatelimiter(5, '1 m', 'ratelimit:login');
 export const globalRatelimit = createRatelimiter(100, '1 m', 'ratelimit:global');
 export const momentRatelimit = createRatelimiter(5, '1 m', 'ratelimit:moment');
 export const likeRatelimit = createRatelimiter(10, '1 m', 'ratelimit:like');
-export function getRateLimiterBackend(): 'upstash'|'memory'|'unavailable' { return hasRedisConfig ? 'upstash' : isProduction ? 'unavailable' : 'memory'; }
+export function getRateLimiterBackend(): 'upstash'|'memory'|'unavailable' {
+  if (hasRedisConfig) return 'upstash';
+  return isProduction && !allowMemoryBackend ? 'unavailable' : 'memory';
+}
 
 function normalizeIp(value: string | null): string | null {
   if (!value) return null;

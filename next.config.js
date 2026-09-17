@@ -1,17 +1,45 @@
 /** @type {import('next').NextConfig} */
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Image hosts must stay in sync with the S3/MinIO public URL configured in .env
-// (S3_PUBLIC_URL / MINIO_PUBLIC_URL). Both the bare host and the loopback alias are
-// allowed so uploads stay renderable whether the bucket is addressed locally or via LAN.
-const storageImageHosts = ['http://192.168.5.2:9000', 'http://localhost:9000'];
+// 图片白名单来源 = MinIO 的内网/回环地址 + 当前部署实际使用的公开地址。
+// 部署地址要么写在 S3_PUBLIC_URL / MINIO_PUBLIC_URL 里，要么用 EXTRA_IMAGE_HOSTS
+// 追加（逗号分隔）。CSP 的 img-src 与 images.remotePatterns 共用这份列表，
+// 换部署地址时两者不会失配。
+function storageImageOrigins() {
+  const origins = new Set(['http://192.168.5.2:9000', 'http://localhost:9000']);
+  const candidates = [
+    process.env.S3_PUBLIC_URL,
+    process.env.MINIO_PUBLIC_URL,
+    ...(process.env.EXTRA_IMAGE_HOSTS || '').split(','),
+  ];
+  for (const candidate of candidates) {
+    const value = candidate?.trim();
+    if (!value) continue;
+    try {
+      origins.add(new URL(value).origin);
+    } catch {
+      // 非 URL 的字面值（例如 "cdn.example.com"）直接按 origin 无法解析，跳过
+    }
+  }
+  return [...origins];
+}
+
+const imageOrigins = storageImageOrigins();
+
+// HTTPS 专属响应头（HSTS + upgrade-insecure-requests）默认跟随生产环境开关。
+// 以明文 HTTP 部署在内网 IP 上时必须关闭：upgrade-insecure-requests 会把同源静态
+// 资源也改写成 https://，而该地址并没有 HTTPS 监听，页面会直接丢样式与脚本。
+// 由 Docker 构建参数 ENFORCE_HTTPS 控制（见 docker-compose.yml）。
+const enforceHttps = process.env.ENFORCE_HTTPS
+  ? process.env.ENFORCE_HTTPS.trim().toLowerCase() !== 'false'
+  : isProduction;
 
 const contentSecurityPolicy = [
   "default-src 'self'",
   // Next.js currently requires inline styles; unsafe-eval is development-only for source maps/HMR.
   `script-src 'self' 'unsafe-inline'${isProduction ? '' : " 'unsafe-eval'"}`,
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' data: blob: https://avatars.githubusercontent.com ${storageImageHosts.join(' ')}`,
+  `img-src 'self' data: blob: https://avatars.githubusercontent.com ${imageOrigins.join(' ')}`,
   "font-src 'self' data:",
   "connect-src 'self'" + (isProduction ? '' : ' ws: wss:'),
   "media-src 'self'",
@@ -19,7 +47,7 @@ const contentSecurityPolicy = [
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
-  ...(isProduction ? ['upgrade-insecure-requests'] : []),
+  ...(enforceHttps ? ['upgrade-insecure-requests'] : []),
 ].join('; ');
 
 const securityHeaders = [
@@ -30,24 +58,43 @@ const securityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
   { key: 'X-DNS-Prefetch-Control', value: 'off' },
-  ...(isProduction
+  ...(enforceHttps
     ? [{ key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' }]
     : []),
 ];
 
 const nextConfig = {
+  // 容器镜像使用 standalone 产物：只携带运行时真正用到的依赖，镜像体积与启动开销都更小。
+  output: 'standalone',
   reactStrictMode: true,
   poweredByHeader: false,
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'avatars.githubusercontent.com' },
-      { protocol: 'http', hostname: 'localhost', port: '9000' },
-      { protocol: 'http', hostname: '192.168.5.2', port: '9000' },
+      ...imageOrigins.map((origin) => {
+        const url = new URL(origin);
+        return {
+          protocol: url.protocol.replace(':', ''),
+          hostname: url.hostname,
+          ...(url.port ? { port: url.port } : {}),
+        };
+      }),
     ],
     unoptimized: true,
   },
   experimental: {
     serverActions: { bodySizeLimit: '5mb' },
+  },
+  // Next 会把 drizzle-orm / mysql2 打进服务端 chunk，standalone 的 node_modules 里
+  // 不会保留这两个包；容器启动时的迁移脚本需要以普通模块方式导入它们，因此显式带上。
+  // sharp 通过动态 require 加载平台二进制（@img/*），文件追踪器可能漏掉，同样显式声明，
+  // 否则上传接口会在运行时崩。
+  outputFileTracingIncludes: {
+    '/**': [
+      './node_modules/@img/**/*',
+      './node_modules/drizzle-orm/**/*',
+      './node_modules/mysql2/**/*',
+    ],
   },
   async redirects() {
     return [

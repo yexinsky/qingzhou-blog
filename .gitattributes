@@ -1,0 +1,21 @@
+# 统一行尾：容器里以 /bin/sh 执行的脚本一旦带 CRLF，会报
+# "/bin/sh^M: bad interpreter" 直接启动失败。仓库内强制 LF，避免在 Windows 上
+# 提交、在 Linux/NAS 上检出时被转换。
+* text=auto
+
+*.sh   text eol=lf
+*.mjs  text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+Dockerfile          text eol=lf
+.dockerignore       text eol=lf
+.gitignore          text eol=lf
+.env.docker.example text eol=lf
+
+# 二进制
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.webp binary
+*.ico  binary

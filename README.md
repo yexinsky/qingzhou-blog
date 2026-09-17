@@ -117,6 +117,21 @@ npm test        # 全量单元测试
 npm run lint    # 代码风格检查
 ```
 
+## Docker Compose 部署
+
+仓库内置 `Dockerfile` 与 `docker-compose.yml`，默认启动 **app + MySQL** 两个容器：
+附件存本地磁盘卷、限流用进程内计数，不依赖任何外部服务，适合在 NAS（飞牛 / 群晖）或自有服务器上长期自托管。
+
+```bash
+cp .env.docker.example .env    # 填必填项：SITE_URL/NEXTAUTH_URL、NEXTAUTH_SECRET、
+                               # ADMIN_PASSWORD、MYSQL_PASSWORD、MYSQL_ROOT_PASSWORD
+docker compose up -d --build   # 启动时自动等待 MySQL 就绪并执行数据库迁移
+```
+
+访问 `http://<主机地址>:8080`，后台入口 `/console/login`。
+端口、数据目录、PUID/PGID 权限、HTTPS 反向代理、可选 MinIO（`--profile minio`）等配置，
+以及飞牛 fnOS 的踩坑说明与故障排查表，见 [docs/DOCKER.md](./docs/DOCKER.md)。
+
 ## 部署要点
 
 - 生产环境务必配置强随机 `NEXTAUTH_SECRET` 与 `ANONYMOUS_ID_SECRET`，并启用反向代理限流（Upstash Redis 可选，见 `.env.example`）
@@ -125,6 +140,7 @@ npm run lint    # 代码风格检查
 
 ## 文档
 
+- [docs/DOCKER.md](./docs/DOCKER.md)：Docker Compose 部署指南（含飞牛 NAS 注意事项）
 - [CLAUDE.md](./CLAUDE.md)：架构约定与数据模型详解
 - [PRD_个人博客网站.md](./PRD_个人博客网站.md)：产品需求文档
 

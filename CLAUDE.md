@@ -77,6 +77,7 @@ QzhouBlog/
 │   └── db/
 │       └── schema.ts            # 数据库 Schema
 ├── drizzle/                     # Drizzle 迁移文件
+├── docker/                      # 容器启动脚本（entrypoint.sh + bootstrap.mjs）
 ├── tests/                       # 测试文件
 │   ├── unit/                    # 单元测试
 │   ├── integration/             # 集成测试
@@ -215,6 +216,32 @@ QzhouBlog/
 - NEXTAUTH_URL - 认证回调地址
 - GITHUB_ID / GITHUB_SECRET - GitHub OAuth
 - MINIO_ENDPOINT / MINIO_ACCESS_KEY / MINIO_SECRET_KEY - 对象存储
+- RATE_LIMIT_BACKEND - 设为 `memory` 时允许生产环境使用进程内限流（单实例自托管）；
+  未设置且没有 Upstash 配置时，所有被限流的接口（含登录）会返回 503
+- ENFORCE_HTTPS - 构建期开关，控制 HSTS 与 `upgrade-insecure-requests` 响应头；
+  明文 HTTP 部署必须为 false，改动后需重新构建镜像
+
+## 10. 容器化与部署（Docker Compose）
+
+镜像与编排文件：`Dockerfile`（多阶段构建，产出 Next.js standalone）、`docker-compose.yml`
+（app + MySQL，MinIO 为可选 profile）、`.env.docker.example`、`docs/DOCKER.md`（含飞牛 NAS 说明）。
+
+改代码时必须遵守的约束：
+
+1. **任何读取数据库的页面/布局都要声明 `export const dynamic = 'force-dynamic'`**（或使用
+   `searchParams`/`cookies()` 等动态 API）。否则 `next build` 会在构建期连库预渲染，
+   导致镜像构建必须挂数据库，且内容被冻结进镜像。
+2. `next.config.js` 的 `outputFileTracingIncludes` 需要保留 `drizzle-orm`、`mysql2`、`@img`：
+   前两者被 Next 打散进服务端 chunk，standalone 的 node_modules 不含它们，而容器启动时的
+   引导脚本（`docker/bootstrap.mjs`）要以普通模块方式导入；`@img` 是 sharp 的平台二进制。
+3. 容器内迁移与 `npm run db:migrate` 使用同一个 drizzle-orm 迁移器、同一张
+   `__drizzle_migrations` 表，幂等且不重复执行。
+4. 登录只校验不建号（`src/lib/auth.ts`），迁移文件不含种子数据，因此引导脚本在 users 表
+   为空时按 `ADMIN_USERNAME`（小写）建一条 admin 记录；表非空时不做任何改动。
+4. 应用以非 root 运行（compose 用 `PUID:PGID` 指定，需与 `DATA_DIR` 属主一致）；
+   `uploads/`、`backups/` 是持久化卷。
+5. 仓库内 `.sh` / `Dockerfile` / `docker-compose.yml` 必须保持 LF（见 `.gitattributes`），
+   带 CRLF 的 shell 脚本会让容器以 `/bin/sh^M: bad interpreter` 启动失败。
 
 
 

@@ -5,6 +5,8 @@ import { TagCloud } from '@/components/ui/Tag'
 import { db, schema } from '@/lib/db'
 import { desc } from 'drizzle-orm'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata = {
   title: '所有标签 - Qzhou Blog',
   description: '浏览博客中所有的标签。',

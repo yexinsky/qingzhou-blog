@@ -6,6 +6,8 @@ import { Footer } from '@/components/layout/Footer'
 import { Container, Section, PageTitle } from '@/components/layout/Container'
 import { db, schema } from '@/lib/db'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata = {
   title: '学习路线 - Qzhou Blog',
   description: '系统化梳理学习路径与进度。',

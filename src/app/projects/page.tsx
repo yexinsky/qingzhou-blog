@@ -7,6 +7,8 @@ import { Container, Section, PageTitle } from '@/components/layout/Container'
 import { TagCloud } from '@/components/ui/Tag'
 import { db, schema } from '@/lib/db'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata = {
   title: '项目展示 - Qzhou Blog',
   description: '个人项目、开源作品与实践。',
