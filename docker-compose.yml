@@ -74,8 +74,10 @@ services:
         # 任一环节真的有问题时，db 仍然是 unhealthy、应用日志里会打印具体错误码，便于定位。
         condition: service_started
     ports:
-      # 只暴露这一个端口；改 WEB_PORT 可避开飞牛自身服务或其他容器占用的端口
-      - "${WEB_PORT:-8080}:3000"
+      # 只暴露这一个端口；改 WEB_PORT 可避开飞牛自身服务或其他容器占用的端口。
+      # 启用下面的 https profile（或前面挂了反向代理）后，建议设 WEB_BIND=127.0.0.1，
+      # 让应用只由代理访问：这样 TRUSTED_PROXY_IP_HEADER 才不会被直连请求伪造。
+      - "${WEB_BIND:-0.0.0.0}:${WEB_PORT:-8080}:3000"
     environment:
       # 数据库只认上面 db 服务那组 MYSQL_* 变量，密码只写一处：
       # 应用原生支持这组分项变量（见 src/lib/database-url.ts），会自行拼装连接串，
@@ -134,6 +136,28 @@ services:
       retries: 5
       start_period: 180s
 
+  # ---------------- 可选：HTTPS 入口（profile: https） ----------------
+  # 应用自身不做 TLS，而 443 已被飞牛自己的 nginx 占用（访问会 302 跳到管理界面），
+  # 所以用 Caddy 在 8443 上提供 HTTPS 并反代到 app:3000。启用步骤见 docs/DOCKER.md 第 5 节：
+  #   1. .env 里把 SITE_URL / NEXTAUTH_URL 改成 https 地址（否则登录会跳回 http）
+  #      并设 TRUSTED_PROXY_IP_HEADER=x-forwarded-for（Caddy 会覆写该头）
+  #   2. docker compose --profile https up -d
+  # 默认用 Caddy 内部 CA 自签证书（浏览器首次会提示不受信任，可导入其根证书或换成自己的证书）。
+  https:
+    image: ${CADDY_IMAGE:-caddy:2-alpine}
+    container_name: qzblog-https
+    profiles: ["https"]
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "${HTTPS_PORT:-8443}:8443"
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # 证书与内部 CA 持久化：卷被删除后浏览器需要重新信任一次
+      - qzblog_caddy_data:/data
+      - qzblog_caddy_config:/config
+
   # ---------------- 可选：MinIO 对象存储 ----------------
   # 默认不启动。需要时：
   #   1. .env 填 MINIO_ROOT_USER / MINIO_ROOT_PASSWORD，并把 ATTACHMENTS_STORAGE 改为 s3，
@@ -163,3 +187,5 @@ volumes:
   qzblog_uploads:
   qzblog_backups:
   qzblog_minio:
+  qzblog_caddy_data:
+  qzblog_caddy_config:

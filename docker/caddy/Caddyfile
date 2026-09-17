@@ -1,0 +1,25 @@
+# QzBlog 的 HTTPS 入口（compose 里 profile: https 的 caddy 服务使用）
+#
+# 为什么用 8443 而不是 443：443 已被飞牛自己的 nginx 占用（访问会 302 跳到它的管理界面）。
+# 换成 443 需要先在飞牛那边腾出端口。
+#
+# local_certs：使用 Caddy 自带的内部 CA 签发证书，不向 Let's Encrypt 申请
+# （内网 IP / 无公网域名时申请必然失败）。浏览器首次访问会提示证书不受信任，
+# 点"继续访问"即可；想彻底消除提示，二选一：
+#   1. 导入 Caddy 的根证书：/data/caddy/pki/authorities/local/root.crt（在 qzblog_caddy_data 卷里）
+#   2. 换成自己的证书：把下面 tls 行改成
+#        tls /certs/fullchain.pem /certs/privkey.pem
+#      并把证书目录挂载进容器（见 docs/DOCKER.md 第 5 节）
+{
+	admin off
+	local_certs
+}
+
+# 站点地址必须写 https:// 前缀：Caddy 对"只有端口、没有主机名"的地址默认按 HTTP 服务，
+# 不写 scheme 会得到明文而不是 TLS。
+https://:8443 {
+	encode gzip
+	# 反代到应用；Caddy 会自动设置并覆写 X-Forwarded-For / X-Forwarded-Proto，
+	# 因此 .env 里可以放心设置 TRUSTED_PROXY_IP_HEADER=x-forwarded-for
+	reverse_proxy app:3000
+}

@@ -264,6 +264,32 @@ location /console {
 3. 用上 HTTPS 后把 `ENFORCE_HTTPS=true`，并重新构建镜像：`docker compose up -d --build`
    （该开关在构建期写入响应头，改完必须重建）。
 
+### 用内置 Caddy 起 HTTPS（不想自己搭代理时）
+
+飞牛上 **443 端口被系统自己的 nginx 占用**（访问 `https://<地址>/` 会 302 跳到它的管理界面），
+所以 compose 里带了一个可选的 Caddy 服务，在 **8443** 上提供 HTTPS 并反代到应用：
+
+```bash
+# 1) 改 .env（三处，改完不需要重建镜像）
+#    SITE_URL=https://192.168.5.2:8443
+#    NEXTAUTH_URL=https://192.168.5.2:8443
+#    TRUSTED_PROXY_IP_HEADER=x-forwarded-for
+#    WEB_BIND=127.0.0.1        # 应用只经代理访问，避免直连伪造 X-Forwarded-For 绕过限流
+# 2) 启动
+docker compose --profile https up -d
+# 3) 访问 https://192.168.5.2:8443
+```
+
+默认用 Caddy 的内部 CA 自签证书，浏览器首次访问会提示证书不受信任，点"继续访问"即可。
+想彻底消除提示，二选一：
+
+- 导入 Caddy 的根证书：它在 `qzblog_caddy_data` 卷内的 `caddy/pki/authorities/local/root.crt`；
+- 换成自己的证书：编辑 `docker/caddy/Caddyfile`，在站点块里加
+  `tls /certs/fullchain.pem /certs/privkey.pem`，并在 compose 的 `https` 服务里挂载证书目录后重启。
+
+> 也可以用飞牛自带的反向代理：把上游指向 `http://127.0.0.1:8080`，然后按上面第 1 步改 `.env`
+> （头名换成飞牛实际覆写的那个，通常是 `x-real-ip`）。
+
 ## 6. 附件存储切换到 MinIO（可选）
 
 默认附件存本地卷（`qzblog_uploads`，经 `/api/files/*` 同源提供）。要改用 MinIO：
