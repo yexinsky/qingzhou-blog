@@ -157,7 +157,10 @@ services:
     ports:
       - "${HTTPS_PORT:-8443}:8443"
     volumes:
-      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # 挂载整个 docker/caddy 目录而不是单个文件：单文件绑定挂载在 git 拉取（写新文件后改名）
+      # 时会指向旧 inode，容器里读到的仍是旧内容，只有重建容器才生效；挂目录则始终看到最新内容，
+      # 也便于把自有证书放进 docker/caddy/ 下一起挂进来
+      - ./docker/caddy:/etc/caddy:ro
       # 证书与内部 CA 持久化：卷被删除后浏览器需要重新信任一次
       - qzblog_caddy_data:/data
       - qzblog_caddy_config:/config
