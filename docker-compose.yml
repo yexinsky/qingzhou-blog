@@ -144,7 +144,9 @@ services:
   #   2. docker compose --profile https up -d
   # 默认用 Caddy 内部 CA 自签证书（浏览器首次会提示不受信任，可导入其根证书或换成自己的证书）。
   https:
-    image: ${CADDY_IMAGE:-caddy:2-alpine}
+    # 钉死版本：Caddy 的证书选择行为随版本变化（旧版对"无 SNI 的纯 IP 访问"会握手失败），
+    # 这里锁定为已验证过的版本；升级前请先在测试环境确认纯 IP 访问仍正常。
+    image: ${CADDY_IMAGE:-caddy:2.11.4}
     container_name: qzblog-https
     profiles: ["https"]
     restart: unless-stopped

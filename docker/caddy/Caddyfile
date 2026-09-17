@@ -13,6 +13,9 @@
 {
 	admin off
 	local_certs
+	# 访问纯 IP 时（curl 与浏览器都如此）客户端不会发送 SNI，Caddy 无从选择证书，
+	# 握手会直接失败（tlsv1 alert internal error）。default_sni 指定此时使用哪个名字取证书。
+	default_sni {$HTTPS_HOST:192.168.5.2}
 }
 
 # 站点地址必须带主机名或 IP：Caddy 要据此签发证书。
