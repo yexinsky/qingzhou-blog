@@ -14,11 +14,14 @@ ARG NODE_IMAGE=node:22-bookworm-slim
 FROM ${NODE_IMAGE} AS deps
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
-COPY package.json package-lock.json ./
+# 重新声明全局 ARG：既让下面能用，也把实际取值打进构建日志（确认加速是否生效）
+ARG NODE_IMAGE
 # 国内网络拉 npm 依赖慢/超时时，把 NPM_REGISTRY 换成镜像源（如 https://registry.npmmirror.com）
 ARG NPM_REGISTRY=https://registry.npmjs.org
+COPY package.json package-lock.json ./
 # 镜像构建需要 devDependencies（typescript / tailwind / eslint），故不加 --omit=dev
-RUN npm ci --registry "${NPM_REGISTRY}"
+RUN echo "[build] 基础镜像=${NODE_IMAGE}  npm 源=${NPM_REGISTRY}" \
+    && npm ci --registry "${NPM_REGISTRY}"
 
 # ---------- 应用构建 ----------
 FROM ${NODE_IMAGE} AS builder

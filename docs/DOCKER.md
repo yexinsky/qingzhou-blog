@@ -15,11 +15,10 @@
   但**飞牛自带的 `docker.fnnas.com` 可能不可用**：它对 `library/node` 返回 `401 Unauthorized`
   且响应里没有 `WWW-Authenticate`（客户端拿不到 token），构建会直接失败在
   `load metadata for node:22-bookworm-slim`。
-  两个逃生通道（见第 8 节）：
-  1. 在飞牛设置里换一个可用的加速地址；
-  2. 不改飞牛设置，直接给镜像加加速前缀：在 `.env` 里设
-     `NODE_IMAGE=docker.m.daocloud.io/library/node:22-bookworm-slim`、
-     `MYSQL_IMAGE=docker.m.daocloud.io/library/mysql:8.0`。
+  为此 `.env.docker.example` 里的 `NODE_IMAGE` / `MYSQL_IMAGE` / `MINIO_IMAGE` / `NPM_REGISTRY`
+  **默认就指向公共加速地址**，照着模板填 `.env` 即可构建成功；能直连 Docker Hub 或已换好飞牛加速时，
+  把这几行注释掉就回到官方镜像名。若报错信息里的镜像名仍是 `docker.io/library/node`（不带加速前缀），
+  说明加速没生效，按第 8 节排查。
 
 ## 2. 三步部署
 
@@ -281,7 +280,7 @@ location /console {
 
 | 症状 | 原因与处理 |
 |------|-----------|
-| 构建报 `401 Unauthorized` / `failed to resolve source metadata for docker.io/library/node` | 镜像加速不可用：飞牛自带的 `docker.fnnas.com` 会返回 **不带 `WWW-Authenticate`** 的 401，客户端取不到 token。两条路：① 在飞牛「Docker → 设置 → 镜像仓库/加速地址」里换成可用的加速；② 不改飞牛设置，在 `.env` 里给基础镜像加前缀 `NODE_IMAGE=docker.m.daocloud.io/library/node:22-bookworm-slim`（数据库同理 `MYSQL_IMAGE=docker.m.daocloud.io/library/mysql:8.0`）。实测 2026-09：`docker.m.daocloud.io`、`docker.1ms.run` 可用，`hub.rat.dev`（302）、`docker.xuanyuan.me`（403）不能当 registry 用 |
+| 构建报 `401 Unauthorized` / `failed to resolve source metadata for docker.io/library/node` | 镜像加速不可用：飞牛自带的 `docker.fnnas.com` 会返回 **不带 `WWW-Authenticate`** 的 401，客户端取不到 token。`.env.docker.example` 默认已指向 `docker.m.daocloud.io`，但**若报错信息里的镜像名仍是 `docker.io/library/node`**（而不是加速前缀），说明加速地址没生效——先用 `docker compose config \| grep -E "NODE_IMAGE\|image:"` 确认 compose 读到的取值，再检查：① 改的是 compose 文件同目录的 `.env` 吗；② 是否漏了 `docker compose build --build-arg NODE_IMAGE=docker.m.daocloud.io/library/node:22-bookworm-slim` 这一步的 `--build`。更彻底的做法是把飞牛「Docker → 设置 → 镜像仓库/加速地址」换成可用加速（如 `https://docker.m.daocloud.io`），之后三行 `*_IMAGE` 都可以注释掉。实测 2026-09：`docker.m.daocloud.io`、`docker.1ms.run` 可用，`hub.rat.dev`（302）、`docker.xuanyuan.me`（403）不能当 registry 用 |
 | 构建中 `npm ci` 极慢或超时 | 默认 npm 源在部分网络下响应 10 秒以上：在 `.env` 里设 `NPM_REGISTRY=https://registry.npmmirror.com` |
 | up 时出现 `app Pulling` 与 `connection reset by peer`，随后继续构建 | 正常现象：应用镜像是本地构建的，compose 只是先尝试拉取同名远程镜像，失败即转入构建，可忽略 |
 | 构建日志里 `WARNING: current commit information was not captured by the build` | 正常现象：`.dockerignore` 排除了 `.git`，BuildKit 拿不到提交信息做元数据，可忽略 |
