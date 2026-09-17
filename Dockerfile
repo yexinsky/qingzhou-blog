@@ -41,6 +41,10 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # 仓库里没有 public/ 目录，先建出来，之后用户往仓库加静态资源时会被自动带上
 RUN mkdir -p public
+# 迁移文件校验：journal 里登记的每个迁移都必须有对应 .sql。曾因 .gitignore 里的 *.sql
+# 规则把迁移文件误忽略、没进仓库，导致镜像里 meta/_journal.json 在而 .sql 不在，
+# 直到容器启动才报错。这里提前拦下，并指明检查方向。
+RUN node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('drizzle/meta/_journal.json','utf8'));const missing=j.entries.filter(e=>!fs.existsSync('drizzle/'+e.tag+'.sql')).map(e=>e.tag+'.sql');if(missing.length){console.error('构建失败：drizzle/ 下缺少迁移文件 '+missing.join('、')+'（检查 .gitignore 的 *.sql 规则与 git 是否已跟踪这些文件）');process.exit(1)}console.log('[build] 迁移文件齐备：'+j.entries.length+' 个')"
 # 以下是构建期生效的配置，改完必须重新构建镜像（docker compose up -d --build）：
 #   ENFORCE_HTTPS    HTTPS 专属响应头开关，明文 HTTP 部署必须为 false
 #   S3_PUBLIC_URL    图片白名单来源（CSP img-src）

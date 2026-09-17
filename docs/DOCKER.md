@@ -298,6 +298,7 @@ df -h . ; free -m                     # 磁盘与内存
 | up 时出现 `app Pulling` 与 `connection reset by peer`，随后继续构建 | 正常现象：应用镜像是本地构建的，compose 只是先尝试拉取同名远程镜像，失败即转入构建，可忽略 |
 | 构建日志里 `WARNING: current commit information was not captured by the build` | 正常现象：`.dockerignore` 排除了 `.git`，BuildKit 拿不到提交信息做元数据，可忽略 |
 | `docker compose up` 报缺少某个变量 | `.env` 未填写必填项，按提示补齐后再执行 |
+| 构建报「drizzle/ 下缺少迁移文件 xxx.sql」；或 app 日志报 `No file drizzle/*.sql found in drizzle folder` | 迁移 SQL 没进构建上下文。根因是 `.gitignore` 里的 `*.sql` 规则会误伤迁移文件（已加 `!drizzle/*.sql` 例外修正）。在服务器上执行 `git ls-files drizzle` 确认列出了 5 个 `.sql` 与 `meta/_journal.json`；若不是，先 `git pull` 取回这些文件再重建 |
 | app 反复重启，日志报 `Cannot find module 'sql-escaper'`（或 mysql2 的其他传递依赖） | 镜像里 mysql2 的依赖树不完整——旧版构建方式会只复制 mysql2 包本身。更新代码后 `docker compose up -d --build` 重建即可（新版由 Dockerfile 用 npm 装完整依赖树到 `/app/tools`） |
 | DB 起不来：旧版 compose 报 `dependency failed to start: container qzblog-db is unhealthy`，新版则是应用日志停在「等待数据库超时」 | 先看 MySQL 自己的报错：`docker compose logs db --tail 60`。常见原因：① **首次初始化被打断**，`DATA_DIR/mysql` 留下半成品目录，MySQL 之后一律拒绝启动——在还没写入正式数据时删掉重来：`docker compose down && sudo rm -rf <DATA_DIR>/mysql && docker compose up -d`；② `DATA_DIR` 所在分区满或不可写（`df -h <DATA_DIR>`）；③ NAS 内存不足，MySQL 被 OOM 杀掉（`dmesg \| tail` 可见）；④ 首次初始化就是要一两分钟（机械盘），新版已改为应用自己等库，稍候即可自动继续 |
 | app 容器反复重启，日志停在「等待数据库超时」 | `db` 没起来：看 `docker compose logs db`；常见原因是数据目录权限或磁盘满 |

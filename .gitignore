@@ -42,6 +42,8 @@ next-env.d.ts
 logs/
 *.dump
 *.sql
+# 例外：drizzle 迁移脚本是项目源码，必须入库（否则容器构建/部署会缺迁移文件）
+!drizzle/*.sql
 *.sqlite
 *.sqlite3
 *.bak
