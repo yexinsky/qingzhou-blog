@@ -173,6 +173,29 @@ docker compose down               # 停止并删除容器（数据保留在 DATA
 docker compose up -d --build      # 更新代码后重建（会自动跑增量迁移）
 ```
 
+### 资源占用与调优
+
+容器化部署在两处做了内存收敛，都在 `docker-compose.yml` 里，改完 `docker compose up -d` 即生效（不用重建镜像）：
+
+- `db`：`--performance-schema=OFF`（MySQL 默认开启，约占 150–250MB，博客用不到它的视图）、
+  `--max-connections=30`（默认 151，每连接都有线程栈与缓冲区开销）、
+  `--innodb-buffer-pool-size=128M`（显式写死，避免随宿主内存比例放大）。
+  在飞牛上实测可把 mysqld 常驻内存从约 417MB 降到 150MB 量级。
+- `app`：`NODE_OPTIONS=--max-old-space-size=384`，给 Node 堆设上限；默认在 8GB 机器上会放到 4GB，
+  内存紧张时容易把整机拖进 swap。
+
+查看实际占用、清理构建缓存：
+
+```bash
+free -m                                    # 内存与 swap
+ps -eo rss,comm --sort=-rss | head -10     # 谁占内存（宿主机视角，含容器内进程）
+sudo docker builder prune -f               # 清理构建缓存（多次部署后可能有数 GB）
+df -h                                      # 各卷余量；Docker 数据目录由 daemon.json 的 data-root 决定
+```
+
+> 若 NAS 上还跑着虚拟机、影视库、相册索引等，它们的内存占用通常远大于本博客
+> （一台 2GB 内存的虚拟机很常见），那部分要在各自的设置里调整。
+
 ### 升级流程
 
 ```bash
