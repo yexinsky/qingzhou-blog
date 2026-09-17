@@ -233,9 +233,12 @@ QzhouBlog/
 1. **任何读取数据库的页面/布局都要声明 `export const dynamic = 'force-dynamic'`**（或使用
    `searchParams`/`cookies()` 等动态 API）。否则 `next build` 会在构建期连库预渲染，
    导致镜像构建必须挂数据库，且内容被冻结进镜像。
-2. `next.config.js` 的 `outputFileTracingIncludes` 需要保留 `drizzle-orm`、`mysql2`、`@img`：
-   前两者被 Next 打散进服务端 chunk，standalone 的 node_modules 不含它们，而容器启动时的
-   引导脚本（`docker/bootstrap.mjs`）要以普通模块方式导入；`@img` 是 sharp 的平台二进制。
+2. `next.config.js` 的 `outputFileTracingIncludes` 只保留 `@img`（sharp 的平台二进制）。
+   **不要**再往里加 `mysql2` / `drizzle-orm`：Next 已把它们打进服务端 chunk，强行复制
+   包目录会得到"包在但传递依赖缺失"的残缺副本（mysql2 依赖 sql-escaper 等 7 个包，
+   曾因此在容器里报 MODULE_NOT_FOUND）。容器启动引导脚本需要的完整依赖树，由 Dockerfile
+   用应用实际安装的版本 `npm install` 到 `/app/tools`，脚本本身也放在该目录下
+   （`/app/tools/bootstrap.mjs`），模块解析才命中这份依赖。
 3. 容器内迁移与 `npm run db:migrate` 使用同一个 drizzle-orm 迁移器、同一张
    `__drizzle_migrations` 表，幂等且不重复执行。
 4. 登录只校验不建号（`src/lib/auth.ts`），迁移文件不含种子数据，因此引导脚本在 users 表

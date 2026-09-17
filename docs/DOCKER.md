@@ -291,6 +291,7 @@ sh scripts/docker-doctor.sh > doctor.txt    # 收集容器状态、db/app 日志
 | up 时出现 `app Pulling` 与 `connection reset by peer`，随后继续构建 | 正常现象：应用镜像是本地构建的，compose 只是先尝试拉取同名远程镜像，失败即转入构建，可忽略 |
 | 构建日志里 `WARNING: current commit information was not captured by the build` | 正常现象：`.dockerignore` 排除了 `.git`，BuildKit 拿不到提交信息做元数据，可忽略 |
 | `docker compose up` 报缺少某个变量 | `.env` 未填写必填项，按提示补齐后再执行 |
+| app 反复重启，日志报 `Cannot find module 'sql-escaper'`（或 mysql2 的其他传递依赖） | 镜像里 mysql2 的依赖树不完整——旧版构建方式会只复制 mysql2 包本身。更新代码后 `docker compose up -d --build` 重建即可（新版由 Dockerfile 用 npm 装完整依赖树到 `/app/tools`） |
 | DB 起不来：旧版 compose 报 `dependency failed to start: container qzblog-db is unhealthy`，新版则是应用日志停在「等待数据库超时」 | 先看 MySQL 自己的报错：`docker compose logs db --tail 60`。常见原因：① **首次初始化被打断**，`DATA_DIR/mysql` 留下半成品目录，MySQL 之后一律拒绝启动——在还没写入正式数据时删掉重来：`docker compose down && sudo rm -rf <DATA_DIR>/mysql && docker compose up -d`；② `DATA_DIR` 所在分区满或不可写（`df -h <DATA_DIR>`）；③ NAS 内存不足，MySQL 被 OOM 杀掉（`dmesg \| tail` 可见）；④ 首次初始化就是要一两分钟（机械盘），新版已改为应用自己等库，稍候即可自动继续 |
 | app 容器反复重启，日志停在「等待数据库超时」 | `db` 没起来：看 `docker compose logs db`；常见原因是数据目录权限或磁盘满 |
 | 登录后跳回奇怪地址 / 登录失败 | 先确认 `SITE_URL`、`NEXTAUTH_URL` 与实际访问地址一致，改完 `docker compose up -d` |
@@ -311,9 +312,9 @@ sh scripts/docker-doctor.sh > doctor.txt    # 收集容器状态、db/app 日志
   导致镜像构建必须挂数据库、且内容被冻结进镜像。
 - 容器内引导脚本（`docker/bootstrap.mjs`）与 `npm run db:migrate` 用的是**同一个
   drizzle-orm 迁移器**、同一张 `__drizzle_migrations` 表，本地迁移过的库不会重复执行。
-  它依赖的 `drizzle-orm`、`mysql2` 通过 `next.config.js` 的 `outputFileTracingIncludes`
-  打进镜像（Next 默认会把这两个包打散到服务端 chunk 里，standalone 的 node_modules
-  不会有它们）。
+  它依赖的 `drizzle-orm`、`mysql2` 及其传递依赖，由 Dockerfile 在构建时用应用实际安装的
+  版本 `npm install` 到镜像内的 `/app/tools`（Next 会把这两个包打散进服务端 chunk，
+  standalone 的 node_modules 里没有它们，而直接复制包目录会漏掉 sql-escaper 之类的传递依赖）。
 - 数据库连接支持 `DATABASE_URL` 与 `MYSQL_*` 两种写法（优先级见
   `src/lib/database-url.ts`）。容器里走 `MYSQL_*`，因此 **`src/lib/database-url.ts` 与
   `docker/bootstrap.mjs` 里的同名解析逻辑必须同步修改**（后者无法 import 前者）。

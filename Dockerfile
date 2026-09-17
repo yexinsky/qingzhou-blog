@@ -23,6 +23,16 @@ COPY package.json package-lock.json ./
 RUN echo "[build] 基础镜像=${NODE_IMAGE}  npm 源=${NPM_REGISTRY}" \
     && npm ci --registry "${NPM_REGISTRY}"
 
+# 容器启动时的引导脚本（迁移 + 建管理员）需要以普通模块方式导入 mysql2 / drizzle-orm，
+# 而 Next 会把它们打散进服务端 chunk，standalone 的 node_modules 里没有这两个包。
+# 直接复制包目录会漏掉传递依赖（mysql2 依赖 sql-escaper 等 7 个包，缺一个就
+# MODULE_NOT_FOUND），所以这里取应用实际安装的版本，让 npm 自己解析出完整依赖树装到
+# /app/tools，引导脚本也放在该目录下，模块解析天然命中这份 node_modules。
+RUN mkdir -p /app/tools \
+    && node -e "const fs=require('fs');const v=n=>JSON.parse(fs.readFileSync('/app/node_modules/'+n+'/package.json','utf8')).version;fs.writeFileSync('/app/tools/package.json',JSON.stringify({name:'qzblog-tools',private:true,dependencies:{'drizzle-orm':v('drizzle-orm'),mysql2:v('mysql2')}},null,2))" \
+    && npm install --prefix /app/tools --omit=dev --no-audit --no-fund --registry "${NPM_REGISTRY}" \
+    && rm -f /app/tools/package-lock.json
+
 # ---------- 应用构建 ----------
 FROM ${NODE_IMAGE} AS builder
 WORKDIR /app
@@ -64,7 +74,11 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 # 迁移文件与启动脚本：容器启动时先迁移再拉起应用
 COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
+# 引导脚本所需的完整依赖树（mysql2 / drizzle-orm 及其传递依赖）
+COPY --from=deps --chown=nextjs:nodejs /app/tools ./tools
 COPY --chown=nextjs:nodejs docker/ ./docker/
+# 引导脚本放进 tools/，其 import 才能解析到上面那份 node_modules
+COPY --chown=nextjs:nodejs docker/bootstrap.mjs ./tools/bootstrap.mjs
 # 两处兜底：
 #   1. 行尾：脚本若被 Windows 编辑器存成 CRLF，/bin/sh 会以 "bad interpreter: /bin/sh^M" 启动失败
 #   2. .env*：Next 会把项目里的 .env 一并带进 standalone 产物，构建上下文虽已由

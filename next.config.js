@@ -85,16 +85,13 @@ const nextConfig = {
   experimental: {
     serverActions: { bodySizeLimit: '5mb' },
   },
-  // Next 会把 drizzle-orm / mysql2 打进服务端 chunk，standalone 的 node_modules 里
-  // 不会保留这两个包；容器启动时的迁移脚本需要以普通模块方式导入它们，因此显式带上。
-  // sharp 通过动态 require 加载平台二进制（@img/*），文件追踪器可能漏掉，同样显式声明，
+  // sharp 通过动态 require 加载平台二进制（@img/*），文件追踪器可能漏掉，显式带上，
   // 否则上传接口会在运行时崩。
+  // 注意不要在里补 mysql2 / drizzle-orm：Next 已把它们打进服务端 chunk，强行复制包目录
+  // 只会得到"包在但传递依赖缺失"的假象（曾因缺 sql-escaper 导致容器启动失败）；
+  // 容器内引导脚本需要的依赖树由 Dockerfile 用 npm 单独装到 /app/tools。
   outputFileTracingIncludes: {
-    '/**': [
-      './node_modules/@img/**/*',
-      './node_modules/drizzle-orm/**/*',
-      './node_modules/mysql2/**/*',
-    ],
+    '/**': ['./node_modules/@img/**/*'],
   },
   async redirects() {
     return [
