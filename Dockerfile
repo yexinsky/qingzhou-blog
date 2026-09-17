@@ -98,9 +98,13 @@ USER nextjs
 
 EXPOSE 3000
 
-# /console/login 不需要数据库，适合作为存活性探针
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/console/login').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"
+# /console/login 不需要数据库，适合作为存活性探针。
+# 用 process.exitCode 让 Node 自然退出：在 fetch 回调里直接 process.exit() 是在事件
+# 循环收尾阶段强杀进程（Windows 上实测触发 libuv 断言、退出码变成 127），不可靠。
+# 慢速 NAS 上"首次启动 + 首次迁移建 22 张表"可能超过 3 分钟，故宽限期 180s、重试 5 次。
+# docker-compose.yml 里有一份等价定义（放在 compose 里便于不改镜像就调整宽限期）。
+HEALTHCHECK --interval=30s --timeout=5s --start-period=180s --retries=5 \
+  CMD ["node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/console/login').then(r=>{process.exitCode=r.status<500?0:1}).catch(()=>{process.exitCode=1})"]
 
 ENTRYPOINT ["/app/docker/entrypoint.sh"]
 CMD ["node", "server.js"]

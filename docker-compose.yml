@@ -115,6 +115,14 @@ services:
       #   user: "${PUID:-1000}:${PGID:-1000}"   # 之后需 chown -R ${PUID}:${PGID} 该目录
       - qzblog_uploads:/app/uploads
       - qzblog_backups:/app/backups
+    # 与 Dockerfile 里的 HEALTHCHECK 等价；放在 compose 里是为了不改镜像就能调宽限期
+    # （慢速 NAS 首次启动 + 首次迁移建表可能超过 3 分钟，窗口太短会误报 unhealthy）
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/console/login').then(r=>{process.exitCode=r.status<500?0:1}).catch(()=>{process.exitCode=1})"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 180s
 
   # ---------------- 可选：MinIO 对象存储 ----------------
   # 默认不启动。需要时：

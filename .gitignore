@@ -78,3 +78,5 @@ admin-test-evidence-*/
 # 附件本地存储与备份产物（运行时生成）
 /uploads/
 /backups/
+# compose 部署时的数据目录（MySQL 数据文件等，绝不能入库）
+/data/
