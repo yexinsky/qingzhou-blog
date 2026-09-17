@@ -57,9 +57,16 @@ try {
   process.exit(1);
 }
 
+// drizzle 把驱动错误包在 cause 链里（"Failed query: ..." 本身不含 MySQL 的错误码与原因），
+// 排障时必须把整条 cause 链打印出来，否则只知道哪条 SQL 失败、不知道为什么。
 function describe(error) {
-  const code = error?.code ? `${error.code} ` : '';
-  return `${code}${error?.message ?? error}`;
+  const parts = [];
+  for (let current = error, depth = 0; current && depth < 5; current = current.cause, depth += 1) {
+    const code = current.code ? `${current.code} ` : '';
+    const message = current.sqlMessage || current.message || String(current);
+    parts.push(`${code}${message}`.trim());
+  }
+  return parts.join('  ←  ');
 }
 
 async function waitForDatabase() {
@@ -126,6 +133,7 @@ try {
 } catch (error) {
   console.error(`[bootstrap] 启动引导失败：${describe(error)}`);
   console.error('[bootstrap] 应用不会启动，避免在结构不完整的库上运行。');
+  console.error('[bootstrap] 若这是全新数据库的首次迁移，可先在仓库里执行 node scripts/audit-migrations.mjs 检查迁移链能否从零重放。');
   process.exitCode = 1;
 } finally {
   await connection.end().catch(() => {});

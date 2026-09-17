@@ -76,8 +76,4 @@ CREATE INDEX `attachments_created_at_idx` ON `attachments` (`created_at`);--> st
 CREATE INDEX `attachments_filename_idx` ON `attachments` (`filename`);--> statement-breakpoint
 CREATE INDEX `categories_slug_idx` ON `categories` (`slug`);--> statement-breakpoint
 CREATE INDEX `categories_sort_order_idx` ON `categories` (`sort_order`);--> statement-breakpoint
-ALTER TABLE `comments` ADD CONSTRAINT `comments_depth_check` CHECK (`comments`.`depth` BETWEEN 0 AND 1);--> statement-breakpoint
-ALTER TABLE `comments` ADD CONSTRAINT `comments_status_check` CHECK (`comments`.`status` IN ('pending', 'approved', 'rejected'));--> statement-breakpoint
-ALTER TABLE `learning_nodes` ADD CONSTRAINT `learning_nodes_status_check` CHECK (`learning_nodes`.`status` IN ('planned', 'learning', 'completed'));--> statement-breakpoint
-ALTER TABLE `posts` ADD CONSTRAINT `posts_status_check` CHECK (`posts`.`status` IN ('draft', 'published', 'scheduled'));--> statement-breakpoint
 ALTER TABLE `posts` ADD CONSTRAINT `posts_category_id_categories_id_fk` FOREIGN KEY (`category_id`) REFERENCES `categories`(`id`) ON DELETE set null ON UPDATE no action;

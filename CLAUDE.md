@@ -241,18 +241,24 @@ QzhouBlog/
    （`/app/tools/bootstrap.mjs`），模块解析才命中这份依赖。
 3. 容器内迁移与 `npm run db:migrate` 使用同一个 drizzle-orm 迁移器、同一张
    `__drizzle_migrations` 表，幂等且不重复执行。
-4. 登录只校验不建号（`src/lib/auth.ts`），迁移文件不含种子数据，因此引导脚本在 users 表
+4. **迁移链必须能从零重放**：全新数据库会从 0000 依次执行全部迁移，任何"先建后加"的
+   重复语句（例如 0000 建表已带 CHECK、0001 又 ADD CONSTRAINT）都会在那里失败，而在
+   逐步增量迁移出来的开发库上完全看不出来。改动或新增迁移后执行
+   `node scripts/audit-migrations.mjs` 自检（它按建表/加列/约束/索引名做冲突扫描）。
+   注意：迁移已应用的库靠 `created_at` 判断是否跳过，因此修订历史文件内容不会让
+   老库重跑，但会让**新库**按修订后的内容执行——两端都要能跑通。
+5. 登录只校验不建号（`src/lib/auth.ts`），迁移文件不含种子数据，因此引导脚本在 users 表
    为空时按 `ADMIN_USERNAME`（小写）建一条 admin 记录；表非空时不做任何改动。
-5. 数据库连接支持 `DATABASE_URL` 与 `MYSQL_*` 两种写法（`src/lib/database-url.ts`，前者优先）。
+6. 数据库连接支持 `DATABASE_URL` 与 `MYSQL_*` 两种写法（`src/lib/database-url.ts`，前者优先）。
    容器走 `MYSQL_*`，因此该文件与 `docker/bootstrap.mjs` 里的同名解析逻辑必须同步修改。
-6. 应用与数据库的页面/布局在无数据库配置时也要能构建：`src/lib/db.ts` 在
+7. 应用与数据库的页面/布局在无数据库配置时也要能构建：`src/lib/db.ts` 在
    `NEXT_PHASE=phase-production-build` 与测试环境下容忍缺配置，运行期缺配置则直接抛错。
-7. 附件与备份使用命名卷（`qzblog_uploads` / `qzblog_backups`），属主由 Docker 从镜像继承，
+8. 附件与备份使用命名卷（`qzblog_uploads` / `qzblog_backups`），属主由 Docker 从镜像继承，
    无需人工 chown；改用绑定挂载（compose 注释里有写法）时才需要 `PUID:PGID` 与目录属主一致。
-8. 基础镜像、数据库镜像与 npm 源可用 `NODE_IMAGE` / `MYSQL_IMAGE` / `MINIO_IMAGE` / `NPM_REGISTRY`
+9. 基础镜像、数据库镜像与 npm 源可用 `NODE_IMAGE` / `MYSQL_IMAGE` / `MINIO_IMAGE` / `NPM_REGISTRY`
    覆盖（国内镜像加速场景），默认值保持官方源，不要写死成加速地址。
-9. `ENFORCE_HTTPS`、`S3_PUBLIC_URL`、`EXTRA_IMAGE_HOSTS` 是**构建期**变量，改动后必须重建镜像。
-10. 仓库内 `.sh` / `Dockerfile` / `docker-compose.yml` 必须保持 LF（见 `.gitattributes`），
+10. `ENFORCE_HTTPS`、`S3_PUBLIC_URL`、`EXTRA_IMAGE_HOSTS` 是**构建期**变量，改动后必须重建镜像。
+11. 仓库内 `.sh` / `Dockerfile` / `docker-compose.yml` 必须保持 LF（见 `.gitattributes`），
    带 CRLF 的 shell 脚本会让容器以 `/bin/sh^M: bad interpreter` 启动失败。
 
 
