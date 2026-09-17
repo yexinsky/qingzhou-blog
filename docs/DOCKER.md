@@ -278,6 +278,12 @@ location /console {
 
 ## 8. 故障排查
 
+遇到问题时，先在项目目录执行自检脚本，把生成的报告贴出来求助最省事（密码会打码）：
+
+```bash
+sh scripts/docker-doctor.sh > doctor.txt    # 收集容器状态、db/app 日志、镜像架构、磁盘内存等
+```
+
 | 症状 | 原因与处理 |
 |------|-----------|
 | 构建报 `401 Unauthorized` / `failed to resolve source metadata for docker.io/library/node` | 镜像加速不可用：飞牛自带的 `docker.fnnas.com` 会返回 **不带 `WWW-Authenticate`** 的 401，客户端取不到 token。`.env.docker.example` 默认已指向 `docker.m.daocloud.io`，但**若报错信息里的镜像名仍是 `docker.io/library/node`**（而不是加速前缀），说明加速地址没生效——先用 `docker compose config \| grep -E "NODE_IMAGE\|image:"` 确认 compose 读到的取值，再检查：① 改的是 compose 文件同目录的 `.env` 吗；② 是否漏了 `docker compose build --build-arg NODE_IMAGE=docker.m.daocloud.io/library/node:22-bookworm-slim` 这一步的 `--build`。更彻底的做法是把飞牛「Docker → 设置 → 镜像仓库/加速地址」换成可用加速（如 `https://docker.m.daocloud.io`），之后三行 `*_IMAGE` 都可以注释掉。实测 2026-09：`docker.m.daocloud.io`、`docker.1ms.run` 可用，`hub.rat.dev`（302）、`docker.xuanyuan.me`（403）不能当 registry 用 |
