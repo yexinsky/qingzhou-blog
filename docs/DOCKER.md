@@ -295,6 +295,13 @@ docker compose --profile https up -d
 > `HTTPS_HOST` 不能省：Caddy 的站点地址若没有主机名，就不会为该站点签发证书，
 > 表现为 TLS 握手直接失败（`curl` 报 `tlsv1 alert internal error`，浏览器报连接失败），
 > 而明文访问会得到 Caddy 的 400（"Client sent an HTTP request to an HTTPS server"）。
+>
+> 另一个同样症状的坑：**访问纯 IP 时客户端不发 SNI**（curl 与浏览器皆如此），Caddy 无从选择
+> 证书，握手同样以 `tlsv1 alert internal error` 失败；已在 Caddyfile 里用 `default_sni` 解决。
+> 该行为随 Caddy 版本变化，所以 `CADDY_IMAGE` 默认钉死为验证过的 `caddy:2.11.4`。
+>
+> 修改 `docker/caddy/Caddyfile` 后需要 `docker compose --profile https up -d` 重建容器才会生效
+> （实测 Caddy 不会因 bind mount 内的文件变化而自动重载）。
 
 默认用 Caddy 的内部 CA 自签证书，浏览器首次访问会提示证书不受信任，点"继续访问"即可。
 想彻底消除提示，二选一：
