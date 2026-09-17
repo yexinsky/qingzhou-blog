@@ -10,9 +10,16 @@
 
 - 飞牛的 Docker 服务已开启（应用中心 → Docker）。
 - 能通过 SSH 登录飞牛（本文命令都在 SSH 终端里执行；飞牛自带「终端」应用即可）。
-- 建议先在飞牛的 Docker 设置里配置**镜像加速**：基础镜像（`node:22`、`mysql:8.0`）
-  需要从 Docker Hub 拉取，国内网络不配加速经常会超时。飞牛的镜像加速在
-  「Docker → 设置 → 镜像仓库/加速地址」里填写。
+- **镜像源要事先确认可用**。基础镜像（`node:22-bookworm-slim`）与 `mysql:8.0` 都要从 Docker Hub 拉，
+  国内直连基本不通（`connection reset`），必须走加速。飞牛的加速在「Docker → 设置 → 镜像仓库/加速地址」，
+  但**飞牛自带的 `docker.fnnas.com` 可能不可用**：它对 `library/node` 返回 `401 Unauthorized`
+  且响应里没有 `WWW-Authenticate`（客户端拿不到 token），构建会直接失败在
+  `load metadata for node:22-bookworm-slim`。
+  两个逃生通道（见第 8 节）：
+  1. 在飞牛设置里换一个可用的加速地址；
+  2. 不改飞牛设置，直接给镜像加加速前缀：在 `.env` 里设
+     `NODE_IMAGE=docker.m.daocloud.io/library/node:22-bookworm-slim`、
+     `MYSQL_IMAGE=docker.m.daocloud.io/library/mysql:8.0`。
 
 ## 2. 三步部署
 
@@ -128,9 +135,15 @@ docker compose --env-file .env.docker up -d --build
   sudo chown -R 1000:1000 /vol1/1000/qzblog/uploads /vol1/1000/qzblog/backups
   ```
 
-### 3.3 构建速度
+### 3.3 构建速度与拉取源
 
 镜像在 NAS 上首次构建需要装依赖，CPU 较弱的机型可能要几分钟到十几分钟，属正常现象。
+构建过程有两个源可以换：
+
+- 基础镜像：在 `.env` 里用 `NODE_IMAGE` / `MYSQL_IMAGE` / `MINIO_IMAGE` 指定带加速前缀的镜像名。
+- npm 依赖：在 `.env` 里设 `NPM_REGISTRY=https://registry.npmmirror.com`
+  （实测国内 `registry.npmjs.org` 响应常在 10 秒以上，`npm ci` 会非常慢甚至超时）。
+
 不想在 NAS 上构建，可以在 PC 上构建后传过去：
 
 ```bash
@@ -268,6 +281,10 @@ location /console {
 
 | 症状 | 原因与处理 |
 |------|-----------|
+| 构建报 `401 Unauthorized` / `failed to resolve source metadata for docker.io/library/node` | 镜像加速不可用：飞牛自带的 `docker.fnnas.com` 会返回 **不带 `WWW-Authenticate`** 的 401，客户端取不到 token。两条路：① 在飞牛「Docker → 设置 → 镜像仓库/加速地址」里换成可用的加速；② 不改飞牛设置，在 `.env` 里给基础镜像加前缀 `NODE_IMAGE=docker.m.daocloud.io/library/node:22-bookworm-slim`（数据库同理 `MYSQL_IMAGE=docker.m.daocloud.io/library/mysql:8.0`）。实测 2026-09：`docker.m.daocloud.io`、`docker.1ms.run` 可用，`hub.rat.dev`（302）、`docker.xuanyuan.me`（403）不能当 registry 用 |
+| 构建中 `npm ci` 极慢或超时 | 默认 npm 源在部分网络下响应 10 秒以上：在 `.env` 里设 `NPM_REGISTRY=https://registry.npmmirror.com` |
+| up 时出现 `app Pulling` 与 `connection reset by peer`，随后继续构建 | 正常现象：应用镜像是本地构建的，compose 只是先尝试拉取同名远程镜像，失败即转入构建，可忽略 |
+| 构建日志里 `WARNING: current commit information was not captured by the build` | 正常现象：`.dockerignore` 排除了 `.git`，BuildKit 拿不到提交信息做元数据，可忽略 |
 | `docker compose up` 报缺少某个变量 | `.env` 未填写必填项，按提示补齐后再执行 |
 | app 容器反复重启，日志停在「等待数据库超时」 | `db` 没起来：看 `docker compose logs db`；常见原因是数据目录权限或磁盘满 |
 | 登录后跳回奇怪地址 / 登录失败 | 先确认 `SITE_URL`、`NEXTAUTH_URL` 与实际访问地址一致，改完 `docker compose up -d` |

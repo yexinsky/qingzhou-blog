@@ -240,9 +240,16 @@ QzhouBlog/
    `__drizzle_migrations` 表，幂等且不重复执行。
 4. 登录只校验不建号（`src/lib/auth.ts`），迁移文件不含种子数据，因此引导脚本在 users 表
    为空时按 `ADMIN_USERNAME`（小写）建一条 admin 记录；表非空时不做任何改动。
-4. 应用以非 root 运行（compose 用 `PUID:PGID` 指定，需与 `DATA_DIR` 属主一致）；
-   `uploads/`、`backups/` 是持久化卷。
-5. 仓库内 `.sh` / `Dockerfile` / `docker-compose.yml` 必须保持 LF（见 `.gitattributes`），
+5. 数据库连接支持 `DATABASE_URL` 与 `MYSQL_*` 两种写法（`src/lib/database-url.ts`，前者优先）。
+   容器走 `MYSQL_*`，因此该文件与 `docker/bootstrap.mjs` 里的同名解析逻辑必须同步修改。
+6. 应用与数据库的页面/布局在无数据库配置时也要能构建：`src/lib/db.ts` 在
+   `NEXT_PHASE=phase-production-build` 与测试环境下容忍缺配置，运行期缺配置则直接抛错。
+7. 附件与备份使用命名卷（`qzblog_uploads` / `qzblog_backups`），属主由 Docker 从镜像继承，
+   无需人工 chown；改用绑定挂载（compose 注释里有写法）时才需要 `PUID:PGID` 与目录属主一致。
+8. 基础镜像、数据库镜像与 npm 源可用 `NODE_IMAGE` / `MYSQL_IMAGE` / `MINIO_IMAGE` / `NPM_REGISTRY`
+   覆盖（国内镜像加速场景），默认值保持官方源，不要写死成加速地址。
+9. `ENFORCE_HTTPS`、`S3_PUBLIC_URL`、`EXTRA_IMAGE_HOSTS` 是**构建期**变量，改动后必须重建镜像。
+10. 仓库内 `.sh` / `Dockerfile` / `docker-compose.yml` 必须保持 LF（见 `.gitattributes`），
    带 CRLF 的 shell 脚本会让容器以 `/bin/sh^M: bad interpreter` 启动失败。
 
 

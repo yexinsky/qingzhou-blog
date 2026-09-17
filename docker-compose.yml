@@ -10,7 +10,8 @@
 services:
   # ---------------- 数据库 ----------------
   db:
-    image: mysql:8.0
+    # 拉不到官方镜像时可用加速前缀覆盖，例如 MYSQL_IMAGE=docker.m.daocloud.io/library/mysql:8.0
+    image: ${MYSQL_IMAGE:-mysql:8.0}
     container_name: qzblog-db
     restart: unless-stopped
     command:
@@ -51,6 +52,10 @@ services:
         S3_PUBLIC_URL: ${S3_PUBLIC_URL:-}
         EXTRA_IMAGE_HOSTS: ${EXTRA_IMAGE_HOSTS:-}
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+        # 基础镜像名，可整体换成镜像加速前缀（见 docs/DOCKER.md 故障排查）
+        NODE_IMAGE: ${NODE_IMAGE:-node:22-bookworm-slim}
+    # 应用镜像在本地构建：up 时若出现 "app Pulling ... registry-1.docker.io ... connection reset"
+    # 属正常现象（compose 会先尝试拉同名镜像，失败后照常构建），可以忽略。
     image: qzblog:latest
     container_name: qzblog-app
     restart: unless-stopped
@@ -114,7 +119,7 @@ services:
   #   2. docker compose --profile minio up -d --build
   #   3. 首次启动后创建存储桶并设为公开只读（命令见 docs/DOCKER.md）
   minio:
-    image: minio/minio:latest
+    image: ${MINIO_IMAGE:-minio/minio:latest}
     container_name: qzblog-minio
     profiles: ["minio"]
     restart: unless-stopped

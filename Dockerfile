@@ -4,9 +4,14 @@
 # 因此 `docker build` 可以在任何机器上离线完成，不会把数据冻结进镜像。
 #
 # 依赖 glibc（bookworm）而非 Alpine：附件处理用到的 sharp 只提供 glibc 预编译二进制。
+#
+# 基础镜像可整体替换（NODE_IMAGE）：国内网络直连 Docker Hub 常失败，飞牛自带的镜像加速
+# 也可能不可用（返回 401 且不给 token 端点），此时在 .env 里把它换成可用的加速前缀，例如
+#   NODE_IMAGE=docker.m.daocloud.io/library/node:22-bookworm-slim
+ARG NODE_IMAGE=node:22-bookworm-slim
 
 # ---------- 依赖安装 ----------
-FROM node:22-bookworm-slim AS deps
+FROM ${NODE_IMAGE} AS deps
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY package.json package-lock.json ./
@@ -16,7 +21,7 @@ ARG NPM_REGISTRY=https://registry.npmjs.org
 RUN npm ci --registry "${NPM_REGISTRY}"
 
 # ---------- 应用构建 ----------
-FROM node:22-bookworm-slim AS builder
+FROM ${NODE_IMAGE} AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
@@ -36,7 +41,7 @@ ENV ENFORCE_HTTPS=${ENFORCE_HTTPS} \
 RUN npm run build
 
 # ---------- 运行时 ----------
-FROM node:22-bookworm-slim AS runner
+FROM ${NODE_IMAGE} AS runner
 WORKDIR /app
 
 # HOSTNAME 必须显式指定：Docker 默认把它设成容器 ID，standalone 的 server.js 会
