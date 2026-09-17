@@ -285,6 +285,7 @@ location /console {
 | up 时出现 `app Pulling` 与 `connection reset by peer`，随后继续构建 | 正常现象：应用镜像是本地构建的，compose 只是先尝试拉取同名远程镜像，失败即转入构建，可忽略 |
 | 构建日志里 `WARNING: current commit information was not captured by the build` | 正常现象：`.dockerignore` 排除了 `.git`，BuildKit 拿不到提交信息做元数据，可忽略 |
 | `docker compose up` 报缺少某个变量 | `.env` 未填写必填项，按提示补齐后再执行 |
+| DB 起不来：旧版 compose 报 `dependency failed to start: container qzblog-db is unhealthy`，新版则是应用日志停在「等待数据库超时」 | 先看 MySQL 自己的报错：`docker compose logs db --tail 60`。常见原因：① **首次初始化被打断**，`DATA_DIR/mysql` 留下半成品目录，MySQL 之后一律拒绝启动——在还没写入正式数据时删掉重来：`docker compose down && sudo rm -rf <DATA_DIR>/mysql && docker compose up -d`；② `DATA_DIR` 所在分区满或不可写（`df -h <DATA_DIR>`）；③ NAS 内存不足，MySQL 被 OOM 杀掉（`dmesg \| tail` 可见）；④ 首次初始化就是要一两分钟（机械盘），新版已改为应用自己等库，稍候即可自动继续 |
 | app 容器反复重启，日志停在「等待数据库超时」 | `db` 没起来：看 `docker compose logs db`；常见原因是数据目录权限或磁盘满 |
 | 登录后跳回奇怪地址 / 登录失败 | 先确认 `SITE_URL`、`NEXTAUTH_URL` 与实际访问地址一致，改完 `docker compose up -d` |
 | 改了 `ADMIN_USERNAME` 后登录失败 | 数据库 `users` 表里没有这个用户名（引导脚本只在表为空时建号）。用 SQL 插入对应 username 的 admin 记录，或改回原用户名 |

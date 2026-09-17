@@ -39,8 +39,9 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
       interval: 10s
       timeout: 5s
-      retries: 10
-      start_period: 30s
+      retries: 15
+      # NAS 上首次初始化（建 InnoDB 系统表）可能要一两分钟，start_period 内不算失败
+      start_period: 60s
 
   # ---------------- 应用 ----------------
   app:
@@ -61,7 +62,10 @@ services:
     restart: unless-stopped
     depends_on:
       db:
-        condition: service_healthy
+        # 用 service_started 而不是 service_healthy：健康检查偏严（比如 NAS 首次初始化较慢）
+        # 会让整个栈直接启动失败，而应用自身会等待数据库并就绪后自动继续（见 docker/bootstrap.mjs），
+        # 任一环节真的有问题时，db 仍然是 unhealthy、应用日志里会打印具体错误码，便于定位。
+        condition: service_started
     ports:
       # 只暴露这一个端口；改 WEB_PORT 可避开飞牛自身服务或其他容器占用的端口
       - "${WEB_PORT:-8080}:3000"
