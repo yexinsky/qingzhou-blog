@@ -278,11 +278,18 @@ location /console {
 
 ## 8. 故障排查
 
-遇到问题时，先在项目目录执行自检脚本，把生成的报告贴出来求助最省事（密码会打码）：
+排障前先把这几项信息收齐，多数问题看它们就能定位：
 
 ```bash
-sh scripts/docker-doctor.sh > doctor.txt    # 收集容器状态、db/app 日志、镜像架构、磁盘内存等
+docker compose ps -a
+docker compose logs db --tail 80      # 数据库自己的报错
+docker compose logs app --tail 40     # 应用/迁移的报错
+df -h . ; free -m                     # 磁盘与内存
 ```
+
+> SSH 用户若不在 docker 组内，以上命令都要加 `sudo`（飞牛的 Docker 图形界面以 root 运行，
+> 所以界面里能启动、SSH 里直接跑会报 `permission denied ... docker.sock`）。
+> 执行 `sudo usermod -aG docker <用户名>` 后重新登录即可免 sudo。
 
 | 症状 | 原因与处理 |
 |------|-----------|
