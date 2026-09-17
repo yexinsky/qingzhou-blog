@@ -150,6 +150,10 @@ services:
     restart: unless-stopped
     depends_on:
       - app
+    environment:
+      # Caddy 要据此签发证书，必须与浏览器里访问用的地址一致（IP 或域名）。
+      # 用 IP 走内部 CA 自签；换成公网域名时需去掉 Caddyfile 里的 local_certs 并配置 ACME 或自有证书。
+      HTTPS_HOST: ${HTTPS_HOST:-192.168.5.2}
     ports:
       - "${HTTPS_PORT:-8443}:8443"
     volumes:
