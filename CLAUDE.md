@@ -212,7 +212,9 @@ QzhouBlog/
 ## 9. 环境变量
 
 参考 .env.example:
-- DATABASE_URL - MySQL 连接串
+- DATABASE_URL - MySQL 连接串；也可改用 MYSQL_HOST/MYSQL_PORT/MYSQL_DATABASE/MYSQL_USER/
+  MYSQL_PASSWORD 分项配置（Docker Compose 走这套，见 src/lib/database-url.ts，
+  docker/bootstrap.mjs 内有同步的解析逻辑）
 - NEXTAUTH_URL - 认证回调地址
 - GITHUB_ID / GITHUB_SECRET - GitHub OAuth
 - MINIO_ENDPOINT / MINIO_ACCESS_KEY / MINIO_SECRET_KEY - 对象存储

@@ -10,6 +10,7 @@ import { db, schema } from '@/lib/db';
 import { eq, asc } from 'drizzle-orm';
 import { getSiteSettings } from '@/lib/settings';
 import { resolveStorageDriver, resolveStorageConfig, LOCAL_STORAGE_ROOT } from '@/lib/storage';
+import { resolveDatabaseUrl } from '@/lib/database-url';
 import { fireNotify } from '@/lib/notify';
 
 export const BACKUP_ROOT = path.join(process.cwd(), 'backups');
@@ -31,7 +32,13 @@ async function getS3Client(): Promise<{ client: S3Like; bucket: string } | null>
 
 /** 生成全库 SQL dump（DDL + INSERT），供恢复时整库重放 */
 export async function dumpDatabase(): Promise<string> {
-  const connection = await mysql.createConnection(process.env.DATABASE_URL!);
+  // charset/timezone 与 src/lib/db.ts 保持一致：dump 内联 UTF-8 内容与 UTC 时间戳，
+  // 连接字符集或时区不一致会让 4 字节字符、datetime 值在恢复后发生偏移
+  const connection = await mysql.createConnection({
+    uri: resolveDatabaseUrl(),
+    charset: 'utf8mb4',
+    timezone: 'Z',
+  });
   const statements: string[] = [
     '-- QzBlog full backup',
     `-- generated at ${new Date().toISOString()}`,
@@ -252,7 +259,12 @@ export async function restoreFromBackup(archiveFile: string): Promise<{ restored
     if (!fs.existsSync(dumpPath)) throw new Error('备份包中缺少 data.sql');
 
     const dump = await fsp.readFile(dumpPath, 'utf8');
-    const connection = await mysql.createConnection({ uri: process.env.DATABASE_URL!, multipleStatements: true });
+    const connection = await mysql.createConnection({
+      uri: resolveDatabaseUrl(),
+      multipleStatements: true,
+      charset: 'utf8mb4',
+      timezone: 'Z',
+    });
     try {
       await connection.query(dump);
     } finally {

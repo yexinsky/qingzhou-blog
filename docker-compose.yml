@@ -61,8 +61,14 @@ services:
       # 只暴露这一个端口；改 WEB_PORT 可避开飞牛自身服务或其他容器占用的端口
       - "${WEB_PORT:-8080}:3000"
     environment:
-      # 密码请只用字母数字，避免 URL 保留字符（@ : / ? #）破坏连接串
-      DATABASE_URL: mysql://${MYSQL_USER:-qzblog}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE:-qzblog}
+      # 数据库只认上面 db 服务那组 MYSQL_* 变量，密码只写一处：
+      # 应用原生支持这组分项变量（见 src/lib/database-url.ts），会自行拼装连接串，
+      # 密码里的 @ : / ? # 等字符无需手写转义。
+      # 想改用连接串的话，在这里补一行 DATABASE_URL（应用优先使用它，注意自行 URL 编码）。
+      MYSQL_HOST: db
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-qzblog}
+      MYSQL_USER: ${MYSQL_USER:-qzblog}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请在 .env 中设置 MYSQL_PASSWORD}
       # 必须是你实际访问博客的地址，否则登录后会被跳回错误域名
       SITE_URL: ${SITE_URL:?请在 .env 中设置 SITE_URL（例如 http://192.168.5.2:8080）}
       NEXTAUTH_URL: ${NEXTAUTH_URL:?请在 .env 中设置 NEXTAUTH_URL（例如 http://192.168.5.2:8080）}

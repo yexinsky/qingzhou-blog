@@ -17,9 +17,43 @@ const MIGRATIONS_FOLDER = process.env.MIGRATIONS_FOLDER?.trim() || 'drizzle';
 const WAIT_TIMEOUT_MS = Number(process.env.DB_WAIT_TIMEOUT_MS || 120_000);
 const RETRY_INTERVAL_MS = 2_000;
 
-const databaseUrl = process.env.DATABASE_URL?.trim();
-if (!databaseUrl) {
-  console.error('[bootstrap] 缺少环境变量 DATABASE_URL，无法连接数据库');
+// 数据库连接串解析，与 src/lib/database-url.ts 保持一致：
+// DATABASE_URL 优先，其次用 docker compose 那组 MYSQL_*（密码自动 URL 编码）。
+// 两处逻辑必须同步修改。
+function resolveDatabaseUrl(env = process.env) {
+  const url = env.DATABASE_URL?.trim();
+  if (url) return url;
+
+  const host = env.MYSQL_HOST?.trim();
+  const user = env.MYSQL_USER?.trim();
+  const database = env.MYSQL_DATABASE?.trim();
+  const password = env.MYSQL_PASSWORD ?? '';
+  const port = env.MYSQL_PORT?.trim() || '3306';
+
+  const missing = [
+    host ? null : 'MYSQL_HOST',
+    user ? null : 'MYSQL_USER',
+    database ? null : 'MYSQL_DATABASE',
+  ].filter(Boolean);
+  if (missing.length) {
+    throw new Error(
+      `缺少 ${missing.join('、')}：请设置 DATABASE_URL（完整连接串），` +
+        '或补齐 MYSQL_HOST/MYSQL_USER/MYSQL_PASSWORD/MYSQL_DATABASE',
+    );
+  }
+
+  const credentials =
+    password === ''
+      ? encodeURIComponent(user)
+      : `${encodeURIComponent(user)}:${encodeURIComponent(password)}`;
+  return `mysql://${credentials}@${host}:${port}/${database}`;
+}
+
+let databaseUrl;
+try {
+  databaseUrl = resolveDatabaseUrl();
+} catch (error) {
+  console.error(`[bootstrap] 数据库配置不完整：${error.message}`);
   process.exit(1);
 }
 
@@ -42,7 +76,7 @@ async function waitForDatabase() {
       if (connection) await connection.end().catch(() => {});
       if (Date.now() >= deadline) {
         console.error(`[bootstrap] 等待数据库超时（${WAIT_TIMEOUT_MS} ms）：${describe(error)}`);
-        console.error('[bootstrap] 请确认 db 服务已启动并通过健康检查，且 DATABASE_URL 指向它。');
+        console.error('[bootstrap] 请确认 db 服务已启动并通过健康检查，且 DATABASE_URL / MYSQL_HOST 指向它。');
         process.exit(1);
       }
       console.log(`[bootstrap] 数据库尚未就绪（${describe(error)}），${RETRY_INTERVAL_MS / 1000} 秒后重试…`);

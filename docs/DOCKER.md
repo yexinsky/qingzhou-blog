@@ -54,12 +54,42 @@ docker compose logs -f app
 | `SITE_URL` / `NEXTAUTH_URL` | 你实际访问博客的地址，含端口，末尾不要斜杠。**填错会导致登录后跳回错误地址** |
 | `NEXTAUTH_SECRET` | 至少 32 位随机字符，生成：`openssl rand -base64 32` |
 | `ADMIN_PASSWORD` | 后台登录密码，请用长且唯一的密码 |
-| `MYSQL_PASSWORD` / `MYSQL_ROOT_PASSWORD` | 数据库密码，建议只用字母数字 |
+| `MYSQL_PASSWORD` / `MYSQL_ROOT_PASSWORD` | 数据库密码。**这一组变量同时决定容器里建什么库/账号和应用怎么连库**，无需再手写 `DATABASE_URL` |
 
 可选：`ADMIN_EMAIL`（管理员邮箱，默认 `<用户名>@localhost`）。
 `ADMIN_USERNAME` 会被规范化为小写后与库中记录比对，建议直接用小写用户名。
 
 登录入口：`http://<飞牛地址>:8080/console/login`，用户名默认 `admin`（`ADMIN_USERNAME`）。
+
+#### 数据库配置为什么不用写连接串
+
+应用支持两种等价写法（见 `src/lib/database-url.ts`）：
+
+```ini
+# 写法一：完整连接串（本机开发常用）
+DATABASE_URL=mysql://qzblog:密码@localhost:3306/qzblog
+
+# 写法二：分项变量（Docker Compose 用这套），密码只写一处，特殊字符无需转义
+MYSQL_HOST=db            # compose 自动设为服务名 db，不用你填
+MYSQL_DATABASE=qzblog
+MYSQL_USER=qzblog
+MYSQL_PASSWORD=密码
+```
+
+容器里用的是写法二：`.env` 里的 `MYSQL_*` 既用于初始化 MySQL 容器，也由应用直接读取
+（compose 会把 `MYSQL_HOST` 设为 `db`），因此不存在"env 里写 URL、compose 却要密码"
+的割裂。如果更习惯连接串，在 `docker-compose.yml` 的 app 服务里补一行 `DATABASE_URL`
+即可，应用会优先使用它（注意自己做 URL 编码）。
+
+#### 同一份目录里已有开发用 `.env` 时
+
+`.env` 是 compose 默认读取的文件名，而开发用的 `.env` 里 `SITE_URL`/`NEXTAUTH_URL` 指向
+`localhost`，直接拿来启动容器会导致登录后跳回错误地址。推荐把容器用的配置单独放一份：
+
+```bash
+cp .env.docker.example .env.docker    # 填容器专用的地址与密码
+docker compose --env-file .env.docker up -d --build
+```
 
 > 忘记填必填项时，`docker compose up` 会直接报错并指出缺哪个变量，不会带着空密钥启动。
 
@@ -261,6 +291,9 @@ location /console {
   它依赖的 `drizzle-orm`、`mysql2` 通过 `next.config.js` 的 `outputFileTracingIncludes`
   打进镜像（Next 默认会把这两个包打散到服务端 chunk 里，standalone 的 node_modules
   不会有它们）。
+- 数据库连接支持 `DATABASE_URL` 与 `MYSQL_*` 两种写法（优先级见
+  `src/lib/database-url.ts`）。容器里走 `MYSQL_*`，因此 **`src/lib/database-url.ts` 与
+  `docker/bootstrap.mjs` 里的同名解析逻辑必须同步修改**（后者无法 import 前者）。
 - `ENFORCE_HTTPS`、`S3_PUBLIC_URL`、`EXTRA_IMAGE_HOSTS` 是**构建期**变量，改动后必须
   重新构建镜像。
 - 应用以非 root 运行；`uploads/`、`backups/` 是持久化卷，容器内路径 `/app/uploads`、
@@ -268,9 +301,11 @@ location /console {
 
 ## 10. 验证范围说明
 
-本方案已在开发机上验证：无数据库环境下 `next build` 成功、standalone 产物齐备
-（含 sharp 的 `@img` 平台二进制与迁移所需的 drizzle-orm / mysql2）、迁移脚本能正确
-解析 `drizzle/` 下的全部迁移并按预期重试等待数据库、compose 文件 YAML 与变量插值有效。
+本方案已在开发机上验证：**完全不提供数据库配置时 `next build` 仍能构建成功**（构建期容忍缺配置，
+运行期缺配置则直接抛出明确错误）、standalone 产物齐备（含 sharp 的 `@img` 平台二进制与迁移所需的
+drizzle-orm / mysql2）、**只给 MYSQL_* 分项变量时应用能启动并正常响应**（`/console/login` 返回 200）、
+迁移与引导脚本能正确解析 `drizzle/` 下的全部迁移并按预期重试等待数据库、compose 文件 YAML 与变量插值
+有效（只填必填项时无报错）。
 
 **未**在本机验证：容器镜像实际的构建与运行（开发机没有 Docker 环境，也没有可用的
 MySQL 实例），因此首次在飞牛上部署时请对照第 8 节的排查表。
