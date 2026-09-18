@@ -6,7 +6,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 // 追加（逗号分隔）。CSP 的 img-src 与 images.remotePatterns 共用这份列表，
 // 换部署地址时两者不会失配。
 function storageImageOrigins() {
-  const origins = new Set(['http://192.168.5.2:9000', 'http://localhost:9000']);
+  const origins = new Set(['http://192.168.1.100:9000', 'http://localhost:9000']);
   const candidates = [
     process.env.S3_PUBLIC_URL,
     process.env.MINIO_PUBLIC_URL,

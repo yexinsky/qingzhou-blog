@@ -88,8 +88,8 @@ services:
       MYSQL_USER: ${MYSQL_USER:-qzblog}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请在 .env 中设置 MYSQL_PASSWORD}
       # 必须是你实际访问博客的地址，否则登录后会被跳回错误域名
-      SITE_URL: ${SITE_URL:?请在 .env 中设置 SITE_URL（例如 http://192.168.5.2:8080）}
-      NEXTAUTH_URL: ${NEXTAUTH_URL:?请在 .env 中设置 NEXTAUTH_URL（例如 http://192.168.5.2:8080）}
+      SITE_URL: ${SITE_URL:?请在 .env 中设置 SITE_URL（例如 http://192.168.1.100:8080）}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:?请在 .env 中设置 NEXTAUTH_URL（例如 http://192.168.1.100:8080）}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?请在 .env 中设置 NEXTAUTH_SECRET（至少 32 位随机字符）}
       ANONYMOUS_ID_SECRET: ${ANONYMOUS_ID_SECRET:-}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
@@ -155,7 +155,7 @@ services:
     environment:
       # Caddy 要据此签发证书，必须与浏览器里访问用的地址一致（IP 或域名）。
       # 用 IP 走内部 CA 自签；换成公网域名时需去掉 Caddyfile 里的 local_certs 并配置 ACME 或自有证书。
-      HTTPS_HOST: ${HTTPS_HOST:-192.168.5.2}
+      HTTPS_HOST: ${HTTPS_HOST:-192.168.1.100}
     ports:
       - "${HTTPS_PORT:-8443}:8443"
     volumes:

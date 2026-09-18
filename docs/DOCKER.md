@@ -282,14 +282,14 @@ location /console {
 
 ```bash
 # 1) 改 .env（四处，改完不需要重建镜像）
-#    SITE_URL=https://192.168.5.2:8443
-#    NEXTAUTH_URL=https://192.168.5.2:8443
-#    HTTPS_HOST=192.168.5.2     # Caddy 据此签发证书，必须等于浏览器访问用的地址
+#    SITE_URL=https://192.168.1.100:8443
+#    NEXTAUTH_URL=https://192.168.1.100:8443
+#    HTTPS_HOST=192.168.1.100     # Caddy 据此签发证书，必须等于浏览器访问用的地址
 #    TRUSTED_PROXY_IP_HEADER=x-forwarded-for
 #    WEB_BIND=127.0.0.1        # 应用只经代理访问，避免直连伪造 X-Forwarded-For 绕过限流
 # 2) 启动
 docker compose --profile https up -d
-# 3) 访问 https://192.168.5.2:8443
+# 3) 访问 https://192.168.1.100:8443
 ```
 
 > `HTTPS_HOST` 不能省：Caddy 的站点地址若没有主机名，就不会为该站点签发证书，
@@ -333,7 +333,7 @@ docker compose --profile https up -d
    ```
 
 若用**其它地址**访问图片（例如换成域名、或 MinIO 不在本机），要把该来源加进
-`EXTRA_IMAGE_HOSTS`（逗号分隔，填 origin 如 `http://192.168.5.2:9000`）并重新构建，
+`EXTRA_IMAGE_HOSTS`（逗号分隔，填 origin 如 `http://192.168.1.100:9000`）并重新构建，
 否则会被 CSP 的 `img-src` 拦掉。`S3_PUBLIC_URL` 会自动进入白名单，无需重复填。
 
 ## 7. 多副本 / 跨实例限流（可选）

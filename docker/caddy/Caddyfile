@@ -15,7 +15,7 @@
 	local_certs
 	# 访问纯 IP 时（curl 与浏览器都如此）客户端不会发送 SNI，Caddy 无从选择证书，
 	# 握手会直接失败（tlsv1 alert internal error）。default_sni 指定此时使用哪个名字取证书。
-	default_sni {$HTTPS_HOST:192.168.5.2}
+	default_sni {$HTTPS_HOST:192.168.1.100}
 }
 
 # 站点地址必须带主机名或 IP：Caddy 要据此签发证书。
@@ -23,7 +23,7 @@
 # 表现为 curl/浏览器报 "tlsv1 alert internal error"，明文访问则得到 Caddy 的 400。
 # 用 IP 时 Caddy 自动走内部 CA（ACME 无法给 IP 签发证书），所以浏览器会有自签提示。
 # HTTPS_HOST 由 compose 传入（默认取 .env 里的值）。
-https://{$HTTPS_HOST:192.168.5.2}:8443 {
+https://{$HTTPS_HOST:192.168.1.100}:8443 {
 	tls internal
 	encode gzip
 	# 反代到应用；Caddy 会自动设置并覆写 X-Forwarded-For / X-Forwarded-Proto，
