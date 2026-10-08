@@ -113,7 +113,6 @@ export default async function PostDetailPage({ params }: { params: Promise<{ slu
     author: { name: c.authorName },
     content: c.contentHtml,
     createdAt: c.createdAt.toISOString(),
-    likes: 0,
   }))
 
   return (

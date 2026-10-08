@@ -1,5 +1,6 @@
 import { eq, desc } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { resolveSiteUrl } from '@/lib/site-url'
 
 const SITE_TITLE = 'Qzhou Blog'
 const SITE_DESCRIPTION = '分享技术心得，记录成长历程。'
@@ -11,16 +12,6 @@ function escapeXml(value: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;')
-}
-
-// 与 robots.ts / sitemap.ts 保持一致的 base URL 解析策略。
-// 优先级：SITE_URL > NEXTAUTH_URL > http://localhost:3000。
-function resolveBaseUrl(): string {
-  const raw =
-    process.env.SITE_URL ||
-    process.env.NEXTAUTH_URL ||
-    'http://localhost:3000'
-  return raw.replace(/\/$/, '')
 }
 
 export const dynamic = 'force-dynamic'
@@ -51,7 +42,7 @@ async function safeFindPublishedPosts(): Promise<RssPost[]> {
 }
 
 export async function GET() {
-  const baseUrl = resolveBaseUrl()
+  const baseUrl = await resolveSiteUrl()
   const posts = await safeFindPublishedPosts()
 
   const items = posts

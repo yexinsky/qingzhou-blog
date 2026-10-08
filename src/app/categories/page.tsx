@@ -79,7 +79,7 @@ export default async function CategoriesPage() {
 
             {categories.length === 0 && uncategorizedCount === 0 && (
               <div className="p-12 text-center bg-background-base rounded-card shadow-card">
-                <p className="text-text-muted mb-4">暂无分类，开始规划你的内容版图吧。</p>
+                <p className="text-text-muted mb-4">暂无分类。</p>
                 <Link
                   href="/posts"
                   className="px-4 py-2 rounded-button bg-brand-orange text-white text-sm hover:bg-brand-dark transition-colors"

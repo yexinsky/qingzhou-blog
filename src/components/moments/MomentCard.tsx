@@ -11,7 +11,6 @@ export type MomentComment = {
   author: { name: string; avatar?: string };
   content: string;
   createdAt: string;
-  likes: number;
 };
 
 type ApiComment = {
@@ -110,7 +109,6 @@ export function MomentCard({
           author: { name: c.authorName },
           content: c.contentHtml,
           createdAt: c.createdAt,
-          likes: 0,
         })));
       } catch (error) {
         addToast(error instanceof Error ? error.message : '加载评论失败', 'error');

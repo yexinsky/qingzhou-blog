@@ -57,7 +57,7 @@ docker compose logs -f app
 
 | 变量 | 说明 |
 |------|------|
-| `SITE_URL` / `NEXTAUTH_URL` | 你实际访问博客的地址，含端口，末尾不要斜杠。**填错会导致登录后跳回错误地址** |
+| `SITE_URL` / `NEXTAUTH_URL` | 你实际访问博客的地址，含端口，末尾不要斜杠。**填错会导致登录后跳回错误地址**；该地址还会写进 `sitemap.xml` / `robots.txt` / `rss.xml`，要对外上线就填公网域名 |
 | `NEXTAUTH_SECRET` | 至少 32 位随机字符，生成：`openssl rand -base64 32` |
 | `ADMIN_PASSWORD` | 后台登录密码，请用长且唯一的密码 |
 | `MYSQL_PASSWORD` / `MYSQL_ROOT_PASSWORD` | 数据库密码。**这一组变量同时决定容器里建什么库/账号和应用怎么连库**，无需再手写 `DATABASE_URL` |
@@ -66,6 +66,24 @@ docker compose logs -f app
 `ADMIN_USERNAME` 会被规范化为小写后与库中记录比对，建议直接用小写用户名。
 
 登录入口：`http://<飞牛地址>:8080/console/login`，用户名默认 `admin`（`ADMIN_USERNAME`）。
+
+#### 前台社交与联系方式（可选）
+
+页脚与「关于我」页面上的社交入口由三个构建期变量控制，**留空即不显示该入口**
+（三个都留空时页脚不出现「关注我」一列，不会出现占位链接）：
+
+```ini
+NEXT_PUBLIC_GITHUB_URL=https://github.com/你的账号
+NEXT_PUBLIC_TWITTER_URL=https://twitter.com/你的账号
+NEXT_PUBLIC_CONTACT_EMAIL=你的邮箱
+```
+
+它们是**构建期**变量（会内联进页面产物），所以改完必须
+`docker compose up -d --build` 重新构建，只改 `.env` 后 `restart` 是不生效的。
+
+> 从旧版本升级：这三个变量原名 `PUBLIC_CONTACT_EMAIL`，现在改名为
+> `NEXT_PUBLIC_CONTACT_EMAIL`，并且 GitHub / Twitter 两个入口是新增的。
+> 旧名下配置的邮箱**不会再生效**，请按上面的名字重写一次并重新构建镜像。
 
 #### 数据库配置为什么不用写连接串
 

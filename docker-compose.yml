@@ -59,6 +59,11 @@ services:
         ENFORCE_HTTPS: ${ENFORCE_HTTPS:-false}
         S3_PUBLIC_URL: ${S3_PUBLIC_URL:-}
         EXTRA_IMAGE_HOSTS: ${EXTRA_IMAGE_HOSTS:-}
+        # 前台页脚/关于页展示的社交与联系方式。NEXT_PUBLIC_* 在构建期内联进产物，
+        # 所以这里必须走 build args：只在 environment 里给是没用的。留空则不渲染该入口。
+        NEXT_PUBLIC_GITHUB_URL: ${NEXT_PUBLIC_GITHUB_URL:-}
+        NEXT_PUBLIC_TWITTER_URL: ${NEXT_PUBLIC_TWITTER_URL:-}
+        NEXT_PUBLIC_CONTACT_EMAIL: ${NEXT_PUBLIC_CONTACT_EMAIL:-}
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
         # 基础镜像名，可整体换成镜像加速前缀（见 docs/DOCKER.md 故障排查）
         NODE_IMAGE: ${NODE_IMAGE:-node:22-bookworm-slim}

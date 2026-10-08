@@ -46,25 +46,22 @@ function EmptyState() {
       <EmptyIllustration />
       <h2 className="mt-6 text-2xl font-semibold text-text-primary">还没有发布的文章</h2>
       <p className="mt-3 text-sm md:text-base text-text-secondary leading-relaxed max-w-md mx-auto">
-        数据库里目前还没有任何已发布的文章。可以进入管理后台创建第一篇文章，发布后会自动出现在这里。
+        这里暂时还没有内容，先去其他板块逛逛吧。
       </p>
       <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
         <Link
-          href="/console/posts"
+          href="/moments"
           className="inline-flex items-center px-5 py-2.5 rounded-button text-sm font-medium bg-brand-orange text-white hover:bg-brand-dark transition-colors"
         >
-          去后台创建文章
+          看看动态
         </Link>
         <Link
-          href="/posts"
+          href="/projects"
           className="inline-flex items-center px-5 py-2.5 rounded-button text-sm font-medium bg-background-hover text-text-primary hover:bg-background-cream transition-colors"
         >
-          浏览文章列表
+          浏览项目
         </Link>
       </div>
-      <p className="mt-6 text-xs text-text-muted">
-        提示：示例数据可通过 <code className="px-1.5 py-0.5 rounded bg-background-hover text-text-secondary">npm run db:seed</code> 写入。
-      </p>
     </div>
   )
 }

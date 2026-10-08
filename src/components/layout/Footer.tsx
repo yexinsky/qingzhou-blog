@@ -1,12 +1,14 @@
 import React from 'react'
 import Link from 'next/link'
 import { Github, Twitter, Mail, Heart } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { getPublicLinks, type PublicLinkKind } from '@/lib/public-links'
 
-const socialLinks = [
-  { icon: Github, href: 'https://github.com/username', label: 'GitHub' },
-  { icon: Twitter, href: 'https://twitter.com/username', label: 'Twitter' },
-  { icon: Mail, href: 'mailto:hello@example.com', label: 'Email' },
-]
+const linkIcons: Record<PublicLinkKind, typeof Github> = {
+  github: Github,
+  twitter: Twitter,
+  email: Mail,
+}
 
 const footerLinks = [
   { label: '首页', href: '/' },
@@ -16,11 +18,14 @@ const footerLinks = [
 
 export const Footer: React.FC = () => {
   const currentYear = new Date().getFullYear()
+  // 社交入口由 NEXT_PUBLIC_GITHUB_URL / NEXT_PUBLIC_TWITTER_URL /
+  // NEXT_PUBLIC_CONTACT_EMAIL 提供；一个都没配时整列不渲染。
+  const socialLinks = getPublicLinks()
 
   return (
     <footer className="border-t border-border bg-background-base mt-auto">
       <div className="page-container py-12">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className={cn('grid grid-cols-1 gap-8', socialLinks.length > 0 ? 'md:grid-cols-3' : 'md:grid-cols-2')}>
           {/* Brand Section */}
           <div className="space-y-4">
             <Link href="/" className="flex items-center space-x-2">
@@ -51,23 +56,29 @@ export const Footer: React.FC = () => {
           </div>
 
           {/* Social Links */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-text-primary uppercase tracking-wider">关注我</h3>
-            <div className="flex space-x-4">
-              {socialLinks.map(social => (
-                <a
-                  key={social.label}
-                  href={social.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="p-2 rounded-button hover:bg-background-hover transition-colors"
-                  aria-label={social.label}
-                >
-                  <social.icon className="w-5 h-5 text-text-secondary" />
-                </a>
-              ))}
+          {socialLinks.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-text-primary uppercase tracking-wider">关注我</h3>
+              <div className="flex space-x-4">
+                {socialLinks.map(social => {
+                  const Icon = linkIcons[social.kind]
+                  const isMail = social.kind === 'email'
+                  return (
+                    <a
+                      key={social.label}
+                      href={social.href}
+                      target={isMail ? undefined : '_blank'}
+                      rel={isMail ? undefined : 'noopener noreferrer'}
+                      className="p-2 rounded-button hover:bg-background-hover transition-colors"
+                      aria-label={social.label}
+                    >
+                      <Icon className="w-5 h-5 text-text-secondary" />
+                    </a>
+                  )
+                })}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Copyright */}

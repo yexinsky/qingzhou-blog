@@ -30,8 +30,8 @@ export interface HomeRecentPost {
 }
 
 export interface HomeProfile {
-  name: string
-  bio: string
+  name?: string
+  bio?: string
   avatar?: string
   tags: Array<{ name: string; count?: number; href?: string }>
 }
@@ -129,11 +129,11 @@ export async function getHomePageData(articleLimit = 6, tagLimit = 20): Promise<
     .slice(0, 5)
     .map((t) => ({ name: t.name, count: t.count, href: t.href }))
 
+  // 不做人设兜底：博主没填昵称/简介时留空，由 ProfileCard 跳过对应行，
+  // 而不是在线上站点凭空渲染一个捏造的名字与自我介绍。
   const profile: HomeProfile = {
-    name: profileUser?.username ?? 'Qzhou',
-    bio:
-      profileUser?.bio ??
-      '欢迎来到 Qzhou Blog，这里记录技术与生活的点滴。',
+    name: profileUser?.username,
+    bio: profileUser?.bio ?? undefined,
     avatar: profileUser?.avatarUrl ?? undefined,
     tags: topTags,
   }

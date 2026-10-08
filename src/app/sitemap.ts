@@ -2,18 +2,9 @@ import type { MetadataRoute } from 'next'
 import { eq, desc } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { getSiteSettings } from '@/lib/settings'
+import { resolveSiteUrl } from '@/lib/site-url'
 
 export const dynamic = 'force-dynamic'
-
-// 与 robots.ts / rss.xml/route.ts 保持一致的 base URL 解析策略。
-// 优先级：SITE_URL > NEXTAUTH_URL > http://localhost:3000。
-function resolveBaseUrl(): string {
-  const raw =
-    process.env.SITE_URL ||
-    process.env.NEXTAUTH_URL ||
-    'http://localhost:3000'
-  return raw.replace(/\/$/, '')
-}
 
 type SitemapEntry = MetadataRoute.Sitemap[number]
 
@@ -37,7 +28,7 @@ async function safeFindMany<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = resolveBaseUrl()
+  const baseUrl = await resolveSiteUrl()
   const now = new Date()
 
   // v1.1（PRD 11.10）：屏蔽搜索引擎时 sitemap 返回空

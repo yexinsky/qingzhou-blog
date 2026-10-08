@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 import { MessageCircle, ThumbsUp, Eye, Share2, Bookmark, BookmarkCheck, Send } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
@@ -18,7 +17,6 @@ interface Comment {
   }
   content: string
   createdAt: string
-  likes: number
 }
 
 interface CommentSectionProps {
@@ -31,11 +29,6 @@ interface CommentSectionProps {
    */
   targetId?: string
   targetType?: 'post' | 'moment'
-  /**
-   * When provided, reply/like UI will be marked as unavailable via a tooltip
-   * rather than pretending to persist. Currently no comment-level API exists.
-   */
-  unavailableReason?: string
 }
 
 const COMMENT_IDENTITY_KEY = 'qzhou-blog-comment-identity-v1'
@@ -64,8 +57,7 @@ function writeCommentIdentity(identity: { name: string; email: string }): void {
   }
 }
 
-export const CommentSection: React.FC<CommentSectionProps> = ({ comments, className, targetId, targetType = 'post', unavailableReason }) => {
-  const reason = unavailableReason ?? '评论回复/点赞接口暂未上线'
+export const CommentSection: React.FC<CommentSectionProps> = ({ comments, className, targetId, targetType = 'post' }) => {
   return (
     <div className={cn('space-y-6', className)}>
       <h3 className="text-2xl font-bold text-text-primary flex items-center space-x-2">
@@ -77,7 +69,7 @@ export const CommentSection: React.FC<CommentSectionProps> = ({ comments, classN
 
       <div className="space-y-6">
         {comments.map(comment => (
-          <CommentItem key={comment.id} comment={comment} unavailableReason={reason} />
+          <CommentItem key={comment.id} comment={comment} />
         ))}
       </div>
 
@@ -202,30 +194,9 @@ const CommentForm: React.FC<CommentFormProps> = ({ targetId, targetType }) => {
   )
 }
 
-interface CommentItemProps {
-  comment: Comment
-  isReply?: boolean
-  unavailableReason?: string
-}
-
-/**
- * Comment-level interactions are intentionally disabled until a backend
- * endpoint exists. Showing a non-functional button would be misleading, so we
- * render an explicit '暂不可用' affordance with a tooltip explaining why.
- */
-const UnavailableHint: React.FC<{ reason: string }> = ({ reason }) => (
-  <span
-    className="text-xs text-text-muted border border-dashed border-border rounded px-1.5 py-0.5 cursor-help"
-    title={reason}
-    aria-label={reason}
-  >
-    暂不可用
-  </span>
-)
-
-const CommentItem: React.FC<CommentItemProps> = ({ comment, isReply = false, unavailableReason }) => {
+const CommentItem: React.FC<{ comment: Comment }> = ({ comment }) => {
   return (
-    <div className={cn('flex space-x-4', isReply && 'ml-12')}>
+    <div className="flex space-x-4">
       <Avatar src={comment.author.avatar} fallback={comment.author.name} size="md" />
       <div className="flex-1 space-y-2">
         <div className="flex items-center space-x-2">
@@ -233,28 +204,6 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, isReply = false, una
           <span className="text-xs text-text-muted">{formatDate(comment.createdAt)}</span>
         </div>
         <p className="text-text-secondary leading-relaxed">{comment.content}</p>
-        <div className="flex items-center space-x-4 text-sm">
-          <button
-            type="button"
-            disabled
-            className="flex items-center space-x-1 text-text-muted opacity-60 cursor-not-allowed"
-            title={unavailableReason ?? '评论点赞接口暂未上线'}
-            aria-disabled="true"
-          >
-            <ThumbsUp className="w-4 h-4" />
-            <span>{comment.likes}</span>
-          </button>
-          <button
-            type="button"
-            disabled
-            className="text-text-muted opacity-60 cursor-not-allowed"
-            title={unavailableReason ?? '评论回复接口暂未上线'}
-            aria-disabled="true"
-          >
-            回复
-          </button>
-          {unavailableReason && <UnavailableHint reason={unavailableReason} />}
-        </div>
       </div>
     </div>
   )
@@ -272,12 +221,8 @@ const LIKE_RETRY_AFTER_MS = 60_000
 interface PostActionsProps {
   likes?: number
   views?: number
-  /**
-   * Article postId. When provided, the like button will POST to /api/likes.
-   * When omitted the button is rendered disabled with an explicit notice; the
-   * UI never optimistically increments the counter on its own.
-   */
-  postId?: string
+  /** Article postId. Required: the like button POSTs /api/likes with it. */
+  postId: string
   /** Title used for share text and bookmark records. */
   title?: string
   /** Optional explicit URL. Defaults to window.location.href in the browser. */
@@ -367,20 +312,14 @@ export const PostActions: React.FC<PostActionsProps> = ({
 
   // Restore bookmark state on mount; never touch localStorage during render.
   useEffect(() => {
-    if (!postId) { setBookmarked(false); return }
     const existing = readBookmarks()
     setBookmarked(existing.some(r => r.postId === postId))
   }, [postId])
 
   const shareUrl = useMemo(() => resolveShareUrl(url), [url])
-  const canLike = typeof postId === 'string' && postId.length > 0
-  const likeDisabled = !canLike || liking
+  const likeDisabled = liking
 
   const handleLike = useCallback(async () => {
-    if (!canLike) {
-      addToast('当前文章未配置 postId，点赞接口不可用', 'warning')
-      return
-    }
     if (liking) return
     setLiking(true)
     try {
@@ -409,7 +348,7 @@ export const PostActions: React.FC<PostActionsProps> = ({
     } finally {
       setTimeout(() => setLiking(false), LIKE_RETRY_AFTER_MS)
     }
-  }, [canLike, liking, postId, addToast])
+  }, [liking, postId, addToast])
 
   const handleShare = useCallback(async () => {
     if (sharing) return
@@ -427,10 +366,6 @@ export const PostActions: React.FC<PostActionsProps> = ({
   }, [sharing, title, shareUrl, addToast])
 
   const handleBookmark = useCallback(() => {
-    if (!postId) {
-      addToast('当前文章未配置 postId，无法收藏', 'warning')
-      return
-    }
     const existing = readBookmarks()
     const idx = existing.findIndex(r => r.postId === postId)
     let next: BookmarkRecord[]
@@ -465,10 +400,10 @@ export const PostActions: React.FC<PostActionsProps> = ({
           onClick={handleLike}
           disabled={likeDisabled}
           aria-disabled={likeDisabled}
-          title={canLike ? '为文章点赞' : '当前未配置 postId，点赞接口不可用'}
+          title="为文章点赞"
           className={cn(
             'flex items-center space-x-1 transition-colors',
-            canLike ? 'hover:text-brand-orange cursor-pointer' : 'opacity-60 cursor-not-allowed',
+            liking ? 'opacity-60 cursor-not-allowed' : 'hover:text-brand-orange cursor-pointer',
           )}
         >
           <ThumbsUp className="w-4 h-4" />

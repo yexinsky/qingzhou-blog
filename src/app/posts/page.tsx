@@ -110,7 +110,7 @@ export default async function PostsPage({ searchParams }: PageProps) {
                 <ArticleList
                   articles={posts}
                   variant="list"
-                  emptyMessage="还没有发布的文章，敬请期待。"
+                  emptyMessage="还没有发布的文章。"
                 />
 
                 {totalPages > 1 && (

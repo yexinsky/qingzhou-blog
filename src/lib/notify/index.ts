@@ -2,14 +2,16 @@ import { getSiteSettings } from '@/lib/settings';
 import { decryptSecret } from '@/lib/crypto';
 import { sendCommentNotification, shouldAggregate, type CommentMailPayload, type MailEvent } from '@/lib/notify/mail';
 import { sendFeishuCard, type FeishuCardPayload, type FeishuEvent } from '@/lib/notify/feishu';
+import { resolveSiteUrl } from '@/lib/site-url';
 
 export type NotifyEvent = MailEvent | FeishuEvent;
 export const NOTIFY_EVENTS: NotifyEvent[] = ['comment.pending', 'comment.reply', 'post.published', 'backup.completed', 'backup.failed'];
 const FEISHU_SUBSCRIBABLE: FeishuEvent[] = ['comment.pending', 'post.published', 'backup.completed', 'backup.failed'];
 
-function resolveConsoleUrl(): string {
-  const base = (process.env.SITE_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000').replace(/\/$/, '');
-  return `${base}/console`;
+// 通知里的后台链接与 sitemap/RSS 共用同一份地址解析，避免漏配 SITE_URL 时
+// 邮件里出现 http://localhost:3000/console 这种点不开的地址。
+async function resolveConsoleUrl(): Promise<string> {
+  return `${await resolveSiteUrl()}/console`;
 }
 
 export interface NotifyPayload {
@@ -28,7 +30,7 @@ export async function notifyEvent(event: NotifyEvent, payload: NotifyPayload): P
   try {
     const settings = await getSiteSettings();
     const timestamp = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-    const consoleUrl = resolveConsoleUrl();
+    const consoleUrl = await resolveConsoleUrl();
 
     const tasks: Promise<unknown>[] = [];
 

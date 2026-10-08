@@ -7,6 +7,13 @@ import { TagCloud } from '@/components/ui/Tag'
 import Link from 'next/link'
 import { db, schema } from '@/lib/db'
 import { renderMarkdown } from '@/lib/markdown'
+import { getPublicLinks, type PublicLinkKind } from '@/lib/public-links'
+
+const linkIcons: Record<PublicLinkKind, typeof Github> = {
+  github: Github,
+  twitter: Twitter,
+  email: Mail,
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -54,13 +61,8 @@ export default async function AboutPage() {
   const [profile, popularTags, aboutPage] = await Promise.all([getProfile(), getPopularTags(), getAboutPage()])
   const aboutHtml = aboutPage?.contentMd ? await renderMarkdown(aboutPage.contentMd) : null
 
-  const socials = [
-    { href: 'https://github.com/qzhou', label: 'GitHub', icon: Github },
-    { href: 'https://twitter.com/qzhou', label: 'Twitter', icon: Twitter },
-    ...(process.env.PUBLIC_CONTACT_EMAIL
-      ? [{ href: 'mailto:' + process.env.PUBLIC_CONTACT_EMAIL, label: '邮箱', icon: Mail }]
-      : []),
-  ]
+  // 社交与联系方式统一由 NEXT_PUBLIC_* 提供（与页脚同一份配置），未配置的整块不渲染。
+  const socials = getPublicLinks()
 
   return (
     <>
@@ -92,32 +94,31 @@ export default async function AboutPage() {
                 <h2 className="text-2xl font-bold text-text-primary">
                   {profile?.username ?? 'Qzhou'}
                 </h2>
-                {profile?.bio ? (
+                {profile?.bio && (
                   <p className="text-text-secondary mt-2 max-w-md mx-auto leading-relaxed">{profile.bio}</p>
-                ) : (
-                  <p className="text-text-muted mt-2 max-w-md mx-auto">
-                    全栈开发工程师，热爱技术，喜欢分享。专注于 Web 开发、前端架构和开源项目。
-                  </p>
                 )}
               </header>
 
-              <div className="flex flex-wrap items-center justify-center gap-3 pt-4 border-t border-border">
-                {socials.map((s) => {
-                  const Icon = s.icon
-                  return (
-                    <a
-                      key={s.label}
-                      href={s.href}
-                      target={s.href.startsWith('mailto:') ? undefined : '_blank'}
-                      rel={s.href.startsWith('mailto:') ? undefined : 'noopener noreferrer'}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-button border border-border-strong text-text-primary text-sm hover:bg-background-hover transition-colors"
-                    >
-                      <Icon className="w-4 h-4" />
-                      <span>{s.label}</span>
-                    </a>
-                  )
-                })}
-              </div>
+              {socials.length > 0 && (
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-4 border-t border-border">
+                  {socials.map((s) => {
+                    const Icon = linkIcons[s.kind]
+                    const isMail = s.kind === 'email'
+                    return (
+                      <a
+                        key={s.label}
+                        href={s.href}
+                        target={isMail ? undefined : '_blank'}
+                        rel={isMail ? undefined : 'noopener noreferrer'}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-button border border-border-strong text-text-primary text-sm hover:bg-background-hover transition-colors"
+                      >
+                        <Icon className="w-4 h-4" />
+                        <span>{s.label}</span>
+                      </a>
+                    )
+                  })}
+                </div>
+              )}
             </article>
 
             <section className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">

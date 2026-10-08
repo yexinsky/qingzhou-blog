@@ -88,7 +88,6 @@ export default async function MomentDetailPage({ params }: PageProps) {
                     author: { name: c.authorName },
                     content: c.contentHtml,
                     createdAt: c.createdAt.toISOString(),
-                    likes: 0,
                   }))}
                   targetId={moment.id}
                   targetType="moment"

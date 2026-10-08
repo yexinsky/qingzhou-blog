@@ -9,6 +9,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getSiteSettings } from '@/lib/settings';
 import { fireNotify } from '@/lib/notify';
+import { resolveSiteUrl } from '@/lib/site-url';
 
 // Validation schemas
 const createCommentSchema = z.object({
@@ -274,6 +275,9 @@ export async function POST(request: NextRequest) {
       });
 
     // v1.1（PRD 11.8 / 11.9）：新评论待审核 / 评论被回复 → 邮件 + 飞书（异步、不阻塞）
+    // 后台链接与 sitemap/RSS 共用同一份地址解析，漏配 SITE_URL 时也不会给管理员发出
+    // 点不开的 localhost 链接。
+    const consoleUrl = `${await resolveSiteUrl()}/console/comments`;
     fireNotify(depth > 0 ? 'comment.reply' : 'comment.pending', {
       title: depth > 0 ? '有新回复待审核' : '有新评论待审核',
       summary: `**${validatedData.authorName}** 评论了 ${targetLabel}：\n${validatedData.contentMd.slice(0, 80)}`,
@@ -281,7 +285,7 @@ export async function POST(request: NextRequest) {
         authorName: validatedData.authorName,
         targetLabel,
         contentSummary: validatedData.contentMd.slice(0, 200),
-        consoleUrl: `${(process.env.SITE_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000').replace(/\/$/, '')}/console/comments`,
+        consoleUrl,
       },
     });
     // 创建响应不回显邮箱、IP、审核状态或原始 Markdown。
