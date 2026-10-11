@@ -1,4 +1,5 @@
 export { Header } from './Header'
+export { SiteLogo } from './SiteLogo'
 export { Footer } from './Footer'
 export { Sidebar, ProfileCard, TagCloudSection, RecentPostsSection } from './Sidebar'
 export { Container, Section, PageTitle } from './Container'

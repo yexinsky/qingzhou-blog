@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { Moon, Sun, Menu, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/hooks/useTheme'
+import { SiteLogo } from './SiteLogo'
 
 const navLinks = [
   { href: '/', label: '首页' },
@@ -27,9 +28,7 @@ export const Header: React.FC = () => {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-brand-orange rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">Q</span>
-            </div>
+            <SiteLogo size={32} />
             <span className="text-xl font-bold text-text-primary hidden sm:block">Qzhou Blog</span>
           </Link>
 

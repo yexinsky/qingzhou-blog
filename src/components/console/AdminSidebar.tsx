@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import { Home, LayoutDashboard, PenTool, Image, MessageSquare, FolderOpen, Paperclip, Trash2, Settings, FileText, DatabaseBackup, User, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { SiteLogo } from '@/components/layout/SiteLogo'
 
 interface NavItem { icon: React.ElementType; label: string; href: string; badge?: number }
 const adminNavItems: NavItem[] = [
@@ -28,7 +29,7 @@ export const AdminSidebar: React.FC<{ className?: string }> = ({ className }) =>
     <aside className={cn('w-64 shrink-0 bg-background-base border-r border-border min-h-screen sticky top-0', className)}>
       <div className="p-6 border-b border-border">
         <Link href="/console" className="flex items-center space-x-2">
-          <div className="w-8 h-8 bg-brand-orange rounded-lg flex items-center justify-center"><span className="text-white font-bold text-lg">Q</span></div>
+          <SiteLogo size={32} />
           <span className="text-xl font-bold text-text-primary">管理后台</span>
         </Link>
       </div>

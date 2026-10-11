@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { Github, Twitter, Mail, Heart } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getPublicLinks, type PublicLinkKind } from '@/lib/public-links'
+import { SiteLogo } from './SiteLogo'
 
 const linkIcons: Record<PublicLinkKind, typeof Github> = {
   github: Github,
@@ -29,9 +30,7 @@ export const Footer: React.FC = () => {
           {/* Brand Section */}
           <div className="space-y-4">
             <Link href="/" className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-brand-orange rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">Q</span>
-              </div>
+              <SiteLogo size={32} />
               <span className="text-xl font-bold text-text-primary">Qzhou Blog</span>
             </Link>
             <p className="text-sm text-text-muted leading-relaxed">
